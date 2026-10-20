@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-20 (first build).
+Last updated: 2026-10-20 (design pass).
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -23,7 +23,8 @@ Live: https://timothyhadfield.github.io/evolution/
 | Lab (traits, pairs, "Can it eat?", food deck) | Done (600 Hard games) |
 | Study (notes against Hard, score race, rounds) | Done |
 | Online seats (shared `_online` layer, re-copied at 0b193d8) | Done: 7 node tests + two headless WebKit browsers played a full game with a reload mid-game, same result on both, no console errors |
-| QA pass (fresh agent, 2026-10-20) | 6 findings, all fixed except: 6-player phone opponents scroll inside their box; deck emptying exactly at 0 during a deal doesn't end the game that round (rule reading: there were enough cards) |
+| QA pass (fresh agent, 2026-10-20) | 6 findings, all fixed except: deck emptying exactly at 0 during a deal doesn't end the game that round (rule reading: there were enough cards) |
+| Design pass (2026-10-20) | Done. 4–6 players on phone: opponents in two compact columns, no scrolling (measured 175/175 px at 393 px). Opponent trait icons on family colours, gold phase title on your turn, red glowing prey while attacking, open trait slots, soft-hyphen trait names, bigger desktop board. Screens: scratchpad `design/evolution/before` + `after` |
 
 ## Authorized next steps
 - (none beyond the brief)
@@ -40,6 +41,8 @@ Live: https://timothyhadfield.github.io/evolution/
 - The game-over card (`#over`) covers only the play view, so the tabs stay usable. Tapping its dark backdrop hides it.
 - Before 1.1, the computers put Carnivore on body-1 species and never grew them, so carnivores starved (Lab showed 0.03 food a round). `choosePlays` now grows a carnivore until it has prey. Watch for this if bots change.
 - Local port 8473 is often taken by other game sites. Use another port for local serving.
+- A local test server must send `charset=utf-8`, or the log shows "Youâ€™s" (GitHub Pages already does).
+- Phone layout: the opps row is `minmax(0, max-content)` and the hand row takes the free space. With 4+ players, `.opps.many` (two columns) and `#game.crowd` turn on. If opponent minis grow, re-measure at 393 px with 6 players.
 
 ## Decisions
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
