@@ -25,3 +25,9 @@
   - a bigger desktop board, overlapped face-down food cards, a highlighted winner row, 40 px tap areas.
 - **Verified:** 33 + 7 tests; WebKit before/after shots of 13 states at 393 px and 1440 px; no page scroll, no overflow, no console errors; nothing moves when a card is tapped or played.
 - **Open:** a real iPhone check.
+
+## 2026-10-20: sound & effects (builder agent)
+- **Asked** (Tim, through the manager): "add opptional sounds … win celebrations, and other fun annimations … customizable in the settings".
+- **Built:** shared `fx.js` copied in; `js/game-fx.js` turns each table change into sounds + animations (map in progress.md); tap sounds for my own plays; end-of-game count-up + win/lose celebration; "Sound & effects" section in Settings; Animations off also stops the table's own CSS motion.
+- **Verified:** `tests/fx.test.js` 8 passed (scripted real games, attack/extinct/Cooperation chain, your-turn chime, Sound/Game sounds/Animations/Celebrations off with the real fx.js); 3 mutations each failed a test; 33 + 7 old tests green. WebKit shots at 393 px and 1440 px: Settings, mid-game "+1" float, win screen; no console errors, no overflow, no page scroll.
+- **Open:** see NOT verified (real audio, a real iPhone).

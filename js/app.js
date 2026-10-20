@@ -3,7 +3,7 @@
    JSON state; a "table" object is the seat transport (this device, or an online room). */
 (function () {
   'use strict';
-  const VERSION = '1.1 · 2026-10-20';
+  const VERSION = '1.2 · 2026-10-20';
   const { DECK, TRAITS, TEXT, FOOD } = EvoCards;
   const E = EvoEngine, B = EvoBots, O = EvoOdds, A = EvoArt;
   const KEY = 'evolution:v1';
@@ -15,6 +15,20 @@
   const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
   const T = id => DECK[id].trait;
   const STRENGTH = window.EvoStrength || null;
+
+  // ------------------------------------------------------------------ sound & effects (js/fx.js + js/game-fx.js)
+  const FXL = window.FX || null, GFX = window.EvoFx || null;
+  const fxEnv = { wait: (ms, fn) => (ms ? setTimeout(fn, ms) : fn()), el: s => document.querySelector(s), all: s => Array.from(document.querySelectorAll(s)) };
+  function fxClasses() {
+    if (!FXL) return;
+    const s = FXL.settings;
+    document.body.classList.toggle('fx-still', !s.animations);
+    document.body.classList.toggle('fx-fast', s.animSpeed === 'fast');
+  }
+  if (FXL) { FXL.init({ game: 'evolution', accent: '#6ea8fe', onChange: fxClasses }); if (GFX) GFX.define(FXL); fxClasses(); }
+  const sfx = (name, o) => { if (FXL) FXL.play(name, o); };
+  // a card glides from the hand to where it was played (a copy; the real card re-renders in place)
+  function fxFly(from, to) { return FXL && from && to ? FXL.flyTo(from, to, { duration: 360, fade: true }) : Promise.resolve(); }
 
   // ------------------------------------------------------------------ storage
   function fresh() {
@@ -103,7 +117,7 @@
   OnlineTable.prototype.act = function (action) {
     net.busy = true; net.sentV = this.snap.v; clearTimeout(net.timer);
     net.timer = setTimeout(() => { net.busy = false; renderPlay(); }, 8000);
-    this.room.act(action).then(r => { if (!r.ok) { unbusy(); toast(r.message); renderPlay(); } });
+    this.room.act(action).then(r => { if (!r.ok) { unbusy(); sfx('error'); toast(r.message); renderPlay(); } });
     return true;
   };
   const net = { room: null, snap: null, busy: false, sentV: null, timer: null, savedLast: false, connecting: false };
@@ -126,7 +140,7 @@
     net.snap = snap;
     if (net.busy && snap.v !== net.sentV) unbusy();
     if (snap.status === 'playing' || snap.status === 'finished') {
-      if (!table || !table.online) { table = new OnlineTable(net.room); resetSel(); net.savedLast = false; }
+      if (!table || !table.online) { table = new OnlineTable(net.room); resetSel(); net.savedLast = false; ui.fxFresh = snap.status === 'playing'; }
       table.snap = snap;
       ME = snap.mySeat >= 0 ? snap.mySeat : 0;
       if (snap.status === 'finished' && snap.pub && !net.savedLast) { net.savedLast = true; store.last = { view: EvoOnlineGame.viewFromSnap(snap), notes: [], online: true }; save(); }
@@ -375,7 +389,7 @@
     store.game = { state, notes: [], level: st.level };
     ME = 0;
     table = new LocalTable(store.game);
-    resetSel(); ui.prevLog = 0; ui.hideOver = false;
+    resetSel(); ui.prevLog = 0; ui.hideOver = false; ui.fxFresh = true;
     save();
     renderPlay();
   }
@@ -407,7 +421,7 @@
       if (p === ME) return '';
       const turn = v.phase === 'feed' && v.turn === p;
       const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : '';
-      return '<div class="opp' + (turn ? ' turn' : '') + '"><div class="oh"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span>' +
+      return '<div class="opp' + (turn ? ' turn' : '') + '" data-p="' + p + '"><div class="oh"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span>' +
         (v.first === p ? '<span class="pill small" title="Feeds first">1st</span>' : '') +
         '<span class="grow"></span><span class="st">' + (st ? st + ' · ' : '') + 'hand ' + pl.handSize + (pl.bag != null ? ' · bag ' + pl.bag : '') + '</span></div>' +
         '<div class="ospc">' + (pl.species.length ? pl.species.map(sp => miniSp(sp, p, v)).join('') : '<span class="muted small">no species</span>') + '</div></div>';
@@ -452,6 +466,16 @@
     vPlay.innerHTML = '<div id="game"' + (v.players.length >= 4 ? ' class="crowd"' : '') + '>' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
     afterRender(v);
+    fxStep(v);
+  }
+  // what changed since the last drawn table -> sounds + animations (computers and online players too)
+  function fxStep(v) {
+    const fresh = !!ui.fxFresh; ui.fxFresh = false;
+    const prev = ui.fxTable === table ? ui.fxPrev : null;
+    ui.fxTable = table; ui.fxPrev = v;
+    if (!FXL || !GFX) return;
+    const ev = GFX.diff(prev, v, ME, { fresh, colors: COLORS });
+    if (ev.length) GFX.perform(ev, FXL, fxEnv);
   }
   function needAfter(dv) { return O.plantDemand(dv); }
 
@@ -601,7 +625,7 @@
     return '<div class="confirm-back" id="over"><div class="panel" style="max-width:420px"><div class="row"><b class="grow" style="font-size:18px">' +
       (r.winners.indexOf(ME) >= 0 ? (r.winners.length > 1 ? 'Shared win!' : 'You win!') : esc(v.players[r.winners[0]].name) + ' wins') + '</b></div>' +
       '<table class="turns" style="margin:10px 0"><tr><th>Player</th><th>Food</th><th>Pop</th><th>Traits</th><th>Total</th></tr>' +
-      rows.map(x => '<tr' + (r.winners.indexOf(x.p) >= 0 ? ' class="win"' : '') + '><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b>' + x.sc.total + '</b></td></tr>').join('') +
+      rows.map(x => '<tr' + (r.winners.indexOf(x.p) >= 0 ? ' class="win"' : '') + '><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b data-tot="' + x.sc.total + '">' + x.sc.total + '</b></td></tr>').join('') +
       '</table><div class="row" style="justify-content:flex-end"><button class="btn ghost" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button></div></div></div>';
   }
 
@@ -656,10 +680,15 @@
       if (!myTurn || (v.phase !== 'food' && v.phase !== 'play')) { cardSheet(id); return; }
       ui.sel = ui.sel === id ? null : id;
       if (v.phase === 'play' && ui.sel != null) ui.mode = 'trait';
+      sfx('click');
       renderPlay(); return;
     }
     const nw = t.closest('[data-new]');
-    if (nw && ui.sel != null) { ui.draft.push({ t: 'species', card: ui.sel, side: nw.dataset.new }); ui.sel = null; renderPlay(); return; }
+    if (nw && ui.sel != null) {
+      // a new species board goes down on the table
+      fxFly($('#hand [data-card="' + ui.sel + '"]'), nw); sfx('place');
+      ui.draft.push({ t: 'species', card: ui.sel, side: nw.dataset.new }); ui.sel = null; renderPlay(); return;
+    }
     const spEl = t.closest('[data-sp]');
     if (spEl) {
       const id = +spEl.dataset.sp;
@@ -668,8 +697,12 @@
         const dv = draftView(v);
         const sp = dv.species.find(x => x.id === id);
         if (!sp) return;
-        if (!canPlayOn(sp, ui.sel, ui.mode)) { toast(ui.mode === 'trait' ? (sp.traits.length + sp.hidden.length >= curMax() ? 'At most ' + curMax() + ' traits per species' : 'It already has that trait') : 'Already at 6'); return; }
-        ui.draft.push({ t: ui.mode, card: ui.sel, s: id }); ui.sel = null; renderPlay(); return;
+        if (!canPlayOn(sp, ui.sel, ui.mode)) { sfx('error'); if (FXL) FXL.shake(spEl); toast(ui.mode === 'trait' ? (sp.traits.length + sp.hidden.length >= curMax() ? 'At most ' + curMax() + ' traits per species' : 'It already has that trait') : 'Already at 6'); return; }
+        // trait: tucked face down under the board; body / population: the board grows
+        const mode = ui.mode;
+        sfx(mode === 'trait' ? 'tuck' : 'grow', mode === 'body' ? { pitch: 0.85 } : undefined);
+        fxFly($('#hand [data-card="' + ui.sel + '"]'), spEl).then(() => { const el = $('#mine [data-sp="' + id + '"]'); if (el && FXL) FXL.pop(el); });
+        ui.draft.push({ t: mode, card: ui.sel, s: id }); ui.sel = null; renderPlay(); return;
       }
       if (v.phase === 'play' && myTurn && ui.sel == null && owner === ME) { dropSheet(v, id); return; }
       if (v.phase === 'feed' && myTurn) {
@@ -693,12 +726,17 @@
       sp.traits.concat(sp.hidden).map(c => '<button class="btn" data-drop="' + c + '">Discard ' + esc(T(c)) + '</button>').join('') + '</div>', e => {
       const b = e.target.closest('[data-drop]');
       if (!b) return;
-      closeSheet(); ui.draft.push({ t: 'drop', s: id, card: +b.dataset.drop }); renderPlay();
+      closeSheet(); sfx('cardSlide'); ui.draft.push({ t: 'drop', s: id, card: +b.dataset.drop }); renderPlay();
     });
   }
   function doAct(k, v) {
-    if (k === 'food' && ui.sel != null) { const c = ui.sel; ui.sel = null; send({ t: 'food', card: c }); return; }
-    if (k === 'undo') { ui.draft.pop(); renderPlay(); return; }
+    if (k === 'food' && ui.sel != null) {
+      // my food card slides face down to the watering hole
+      const c = ui.sel; ui.sel = null;
+      sfx('cardSlide'); fxFly($('#hand [data-card="' + c + '"]'), $('.hole .fcards') || $('.hole'));
+      send({ t: 'food', card: c }); return;
+    }
+    if (k === 'undo') { if (ui.draft.length) sfx('cardSlide', { pitch: 0.8 }); ui.draft.pop(); renderPlay(); return; }
     if (k === 'done') {
       const moves = ui.draft.slice();
       ui.draft = []; ui.sel = null;
@@ -725,16 +763,12 @@
     renderPlay();
   }
   function send(action) {
-    const v = curView();
     try {
       ui.gen++; ui.tapLock = Date.now() + 450;
       table.act(action);
       resetSel();
-    } catch (err) { toast(err.message || 'That move isn’t allowed'); resetSel(); }
-    renderPlay();
-    if (v.phase === 'feed' && action.t === 'attack') {
-      setTimeout(() => { const el = document.querySelector('[data-sp="' + action.target + '"]'); if (el) el.classList.add('bitten'); }, 30);
-    }
+    } catch (err) { sfx('error'); toast(err.message || 'That move isn’t allowed'); resetSel(); }
+    renderPlay(); // the bite (snap + shake on the prey) comes from fxStep, the same for every player's attacks
   }
 
   function showHint() {
@@ -1013,10 +1047,12 @@
       '<div class="setrow"><span class="grow"><b>Computer speed</b><span>Feeding turns on this device</span></span></div>' +
       '<div class="seg" data-speed>' + ['slow', 'normal', 'fast'].map(k => '<button aria-pressed="' + (st.speed === k) + '" data-v="' + k + '">' + cap(k) + '</button>').join('') + '</div>' +
       '<div class="setrow"><span class="grow"><b>Name</b><span>Shown to friends online</span></span><input class="txt" id="set-name" maxlength="20" style="width:140px" value="' + esc(st.name) + '" placeholder="You"></div></div>' +
+      '<div class="panel" id="set-fx"><span class="label">Sound &amp; effects</span></div>' +
       '<div class="panel"><div class="row"><span class="label grow">Rules</span></div><div class="small" style="display:flex;flex-direction:column;gap:6px;margin-top:6px">' + RULES_HTML + '</div>' +
       '<p class="muted small" style="margin:8px 0 0">Base game, 2nd printing (2015): 129 cards, 17 traits, 2–6 players. Our own words and drawings.</p></div>' +
       '<div class="panel"><div class="row"><span class="label grow">How strong are the computers?</span></div><p class="small" style="margin:6px 0 0">' + esc(strengthNote()) + '</p></div>' +
       '<p class="ver">Evolution Lab ' + VERSION + ' · <a href="../">All games</a></p></div>';
+    if (FXL) FXL.renderSettings($('#set-fx'));
   }
   vSet.addEventListener('change', e => {
     const k = e.target.dataset.sw;
