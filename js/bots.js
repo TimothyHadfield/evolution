@@ -42,6 +42,12 @@
     return mouths ? supply / mouths : 3;
   }
 
+  // rival species a carnivore of this size could reach (body only; defences ignored)
+  function preyCount(s, p, sp) {
+    let n = 0;
+    s.players.forEach((pl, q) => { if (q !== p) pl.species.forEach(x => { if (x.body < sp.body + (has(sp, 'Pack Hunting') ? sp.pop : 0)) n++; }); });
+    return n;
+  }
   // ------------------------------------------------------------------ value of a trait on a species
   function traitValue(s, p, sp, i, t, lv) {
     const thr = threat(s, p, i) + (lv === 'hard' ? carnivores(s, p).length * 0.25 : 0);
@@ -54,7 +60,8 @@
         if (carn || sp.traits.length + sp.hidden.length > 1) return -5;
         let targets = 0;
         s.players.forEach((pl, q) => pl.species.forEach(x => { if (x !== sp && x.body < sp.body + 1 && q !== p) targets++; }));
-        v += targets * 0.5 + (out < 1.2 ? 1.2 : 0) + (sp.body >= 3 ? 0.8 : -1) - (sp.pop > 2 ? 0 : 0.2);
+        // targets are counted after one more body size: the planner grows a new carnivore right away
+        v += targets * 0.5 + (out < 1.2 ? 1.2 : 0) + (sp.body >= 2 ? 0.8 : 0) - (sp.pop > 2 ? 0 : 0.2);
         if (!targets) v -= 3;
         break;
       }
@@ -128,10 +135,11 @@
         const vNew = (nSp < 2 ? 2.4 : nSp < 4 ? 1.6 - 0.25 * nSp : 0.3) * (out > 1 ? 1 : 0.6);
         if (vNew > bv) { bv = vNew; best = { t: 'species', card, side: 'R' }; }
         pl.species.forEach((sp, i) => {
-          const carn = E.isCarn(sp);
+          const carn = E.isCarn(sp) || sp.hidden.some(id => T(id) === 'Carnivore');
+          const prey = carn ? preyCount(s, p, sp) : 0;
           // population: worth it if food per mouth looks fine (carnivores: if meat is around)
           if (sp.pop < E.MAX) {
-            const vp = carn ? 0.6 : (out >= 1.3 ? 1.3 : out >= 1 ? 0.9 : 0.3) - (threat(s, p, i) ? 0.3 : 0);
+            const vp = carn ? (prey ? 0.6 : 0.1) : (out >= 1.3 ? 1.3 : out >= 1 ? 0.9 : 0.3) - (threat(s, p, i) ? 0.3 : 0);
             if (vp > bv) { bv = vp; best = { t: 'pop', card, s: sp.id }; }
           }
           // body size: escape a carnivore, or a carnivore that bites bigger
@@ -142,7 +150,7 @@
                 const atk = c.sp.body + (has(c.sp, 'Pack Hunting') ? c.sp.pop : 0);
                 if (atk === sp.body + 1) vb += 0.9;
               }
-              if (carn) vb += 0.7;
+              if (carn) { vb += prey ? 0.7 : 1.6; s.players.forEach((pl2, q) => { if (q !== p) pl2.species.forEach(x => { if (x.body === sp.body) vb += 0.45; }); }); }
               if (has(sp, 'Fat Tissue')) vb += 0.2;
             } else vb += threat(s, p, i) ? 0.7 : 0;
             if (vb > bv) { bv = vb; best = { t: 'body', card, s: sp.id }; }

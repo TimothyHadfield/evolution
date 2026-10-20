@@ -18,11 +18,12 @@ Live: https://timothyhadfield.github.io/evolution/
 |---|---|
 | Deck (129 cards, 17 traits, exact food numbers) | Done, tested |
 | Rules engine (2017 rulebook, Quick Play variant, 2–6 players) | Done, 33 tests |
-| Computers (Easy, Medium, Hard) | Done. 2 players: Hard beats Easy 89%, Medium 70%; Medium beats Easy 83% (1,400 games). At a 4-player table against three Medium: Hard wins 29% (fair share 25%) |
+| Computers (Easy, Medium, Hard) | Done. 2 players: Hard beats Easy 99%, Medium 73%; Medium beats Easy 77% (1,400 games). At a 4-player table against three Medium: Hard wins 52% (fair share 25%) |
 | Odds (hole forecast, food needed, threat map) | Done |
 | Lab (traits, pairs, "Can it eat?", food deck) | Done (600 Hard games) |
 | Study (notes against Hard, score race, rounds) | Done |
-| Online seats (shared `_online` layer) | Done, local tests. A two-browser test may still be NOT verified (see below) |
+| Online seats (shared `_online` layer, re-copied at 0b193d8) | Done: 7 node tests + two headless WebKit browsers played a full game with a reload mid-game, same result on both, no console errors |
+| QA pass (fresh agent, 2026-10-20) | 6 findings, all fixed except: 6-player phone opponents scroll inside their box; deck emptying exactly at 0 during a deal doesn't end the game that round (rule reading: there were enough cards) |
 
 ## Authorized next steps
 - (none beyond the brief)
@@ -37,6 +38,7 @@ Live: https://timothyhadfield.github.io/evolution/
 - The online layer is a copy. Re-copy `_online/online.js` when `_online` changes. Never edit it here.
 - In the online public view, `canPass` is always false (the view is for seat −1). The screen works it out from `feedOptions` itself.
 - The game-over card (`#over`) covers only the play view, so the tabs stay usable. Tapping its dark backdrop hides it.
+- Before 1.1, the computers put Carnivore on body-1 species and never grew them, so carnivores starved (Lab showed 0.03 food a round). `choosePlays` now grows a carnivore until it has prey. Watch for this if bots change.
 - Local port 8473 is often taken by other game sites. Use another port for local serving.
 
 ## Decisions

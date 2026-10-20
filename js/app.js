@@ -3,7 +3,7 @@
    JSON state; a "table" object is the seat transport (this device, or an online room). */
 (function () {
   'use strict';
-  const VERSION = '1.0 · 2026-10-20';
+  const VERSION = '1.1 · 2026-10-20';
   const { DECK, TRAITS, TEXT, FOOD } = EvoCards;
   const E = EvoEngine, B = EvoBots, O = EvoOdds, A = EvoArt;
   const KEY = 'evolution:v1';
@@ -109,7 +109,7 @@
   const net = { room: null, snap: null, busy: false, sentV: null, timer: null, savedLast: false, connecting: false };
   function loadOnline() {
     if (net.room) return Promise.resolve(net.room);
-    return import(new URL('js/online.js?v=1', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=2', location.href).href).then(mod => {
       if (net.room) return net.room;
       net.room = mod.createOnline({ game: EvoOnlineGame.game, gameId: 'evolution', botDelayMs: 700 });
       net.room.on('change', onNet);
@@ -243,12 +243,16 @@
     if (!['play', 'lab', 'study', 'settings'].includes(tab)) tab = 'play';
     ui.tab = tab;
     closeSheet();
+    document.querySelectorAll('.confirm-back:not(#over)').forEach(b => b.remove());
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
     if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
     render();
   }
-  window.addEventListener('popstate', e => { showTab((e.state && e.state.tab) || (location.hash.slice(1) || 'play'), false); });
+  window.addEventListener('popstate', e => {
+    const box = document.querySelector('.confirm-back:not(#over)');
+    if (box || $('#sheet')) { if (box) box.remove(); closeSheet(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (x) { /* file:// */ } return; }
+    showTab((e.state && e.state.tab) || (location.hash.slice(1) || 'play'), false); });
 
   // help bubbles
   document.addEventListener('click', e => {
@@ -399,7 +403,7 @@
     const opps = v.players.map((pl, p) => {
       if (p === ME) return '';
       const turn = v.phase === 'feed' && v.turn === p;
-      const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : v.phase === 'feed' ? (pl.out ? 'done' : '') : '';
+      const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : '';
       return '<div class="opp' + (turn ? ' turn' : '') + '"><div class="oh"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span>' +
         (v.first === p ? '<span class="pill small" title="Feeds first">1st</span>' : '') +
         '<span class="grow"></span><span class="st">' + (st ? st + ' · ' : '') + 'hand ' + pl.handSize + (pl.bag != null ? ' · bag ' + pl.bag : '') + '</span></div>' +
@@ -637,7 +641,7 @@
     if (t.id === 'over') { ui.hideOver = true; renderPlay(); return; }
     if (t.closest('[data-go-hole]')) { holeSheet(v); return; }
     const actB = t.closest('[data-act]');
-    if (actB) { doAct(actB.dataset.act, v); return; }
+    if (actB) { if (Date.now() < (ui.tapLock || 0)) return; doAct(actB.dataset.act, v); return; }
     const modeB = t.closest('[data-mode] button[data-mode]');
     if (modeB) { ui.mode = modeB.dataset.mode; renderPlay(); return; }
     const card = t.closest('[data-card]');
@@ -718,7 +722,7 @@
   function send(action) {
     const v = curView();
     try {
-      ui.gen++;
+      ui.gen++; ui.tapLock = Date.now() + 450;
       table.act(action);
       resetSel();
     } catch (err) { toast(err.message || 'That move isn’t allowed'); resetSel(); }
@@ -832,12 +836,12 @@
   }
   function traitsHtml() {
     const L = window.EvoLab;
-    const rows = TRAITS.map(t => ({ t, x: L && L.traits[t] }));
+    const rows = TRAITS.map(t => ({ t, x: L && L.traits[t] && L.traits[t].n >= L.minN ? L.traits[t] : null }));
     if (L) rows.sort((a, b) => (b.x ? b.x.food : 0) - (a.x ? a.x.food : 0));
     const lo = L ? Math.min(...rows.map(r => r.x ? r.x.food : 9)) : 0, hi = L ? Math.max(...rows.map(r => r.x ? r.x.food : 0)) : 1;
     return '<div class="panel"><div class="row"><span class="label grow">Food a round, by trait</span>' + qBtn('From simulated games between Hard computers: average food eaten per round by species that carry the trait. Traits that protect (like Hard Shell) score by keeping the species alive, so look at "lived" too.') + '</div>' +
       rows.map(r => '<div class="trow" data-trait="' + esc(r.t) + '"><span class="ic" style="' + famStyle(r.t) + ';background:var(--paper)">' + A.icon(r.t) + '</span><span class="nm">' + esc(r.t) + '</span>' +
-        (r.x ? '<span class="bar"><i style="width:' + ((r.x.food - lo) / (hi - lo + 1e-9) * 100).toFixed(0) + '%;background:' + heat(r.x.food, lo, hi) + '"></i></span><span class="v">' + r.x.food.toFixed(2) + '</span><span class="v muted" style="width:48px">' + r.x.life.toFixed(1) + 'r</span>' : '<span class="grow muted small">' + FOOD[r.t].length + ' cards</span>') + '</div>').join('') +
+        (r.x ? '<span class="bar"><i style="width:' + ((r.x.food - lo) / (hi - lo + 1e-9) * 100).toFixed(0) + '%;background:' + heat(r.x.food, lo, hi) + '"></i></span><span class="v">' + r.x.food.toFixed(2) + '</span><span class="v muted" style="width:48px">' + r.x.life.toFixed(1) + 'r</span>' : '<span class="grow muted small">' + (L ? 'too few examples' : FOOD[r.t].length + ' cards') + '</span>') + '</div>').join('') +
       (L ? '<p class="muted small" style="margin:6px 0 0">' + L.games + ' games · r = rounds a species lived</p>' : '') + '</div>';
   }
   function pairsHtml() {
@@ -886,7 +890,7 @@
       '<div class="tpick">' + list.map(t => '<button aria-pressed="' + (c[k].traits.indexOf(t) >= 0) + '" data-calc="' + k + '.t.' + esc(t) + '">' + A.icon(t) + esc(t) + '</button>').join('') + '</div></div>';
     const r = calcResult(c);
     return '<div class="panel"><div class="row"><span class="label grow">At the real table</span>' + qBtn('Set up the attacker and the target to check whether the attack is allowed, with the reason. Uses the same rules as the game engine.') + '</div>' +
-      '<div class="verdict ' + (r.ok ? 'yes' : 'no') + '" style="margin:6px 0">' + (r.ok ? 'Yes, it can attack' : 'No') + '</div><p class="small" style="margin:0 0 8px">' + esc(r.ok ? 'It eats ' + c.d.body + ' meat' + (c.d.traits.indexOf('Horns') >= 0 ? ', and loses 1 population to Horns.' : '.') : r.why) + '</p>' +
+      '<div class="verdict ' + (r.ok ? 'yes' : 'no') + '" style="margin:6px 0">' + (r.ok ? 'Yes, it can attack' : 'No') + '</div><p class="small" style="margin:0 0 8px">' + esc(r.ok ? calcEats(c, r) : r.why) + '</p>' +
       '<div class="calc">' + side('a', 'Carnivore', ATT) + side('d', 'Target', DEF) + '</div>' +
       '<div class="row small" style="margin-top:8px;flex-wrap:wrap"><span class="muted">Target’s neighbours:</span>' +
       '<div class="tpick"><button aria-pressed="' + (c.left.indexOf('Warning Call') >= 0) + '" data-calc="n.left">' + A.icon('Warning Call') + 'Warning Call left</button>' +
@@ -899,8 +903,15 @@
     if (parts[0] === 'n') { const arr = c[parts[1]]; const i = arr.indexOf('Warning Call'); if (i >= 0) arr.splice(i, 1); else arr.push('Warning Call'); }
     else if (parts[0] === 'rb') c.rightBody = Math.max(1, Math.min(6, c.rightBody + (parts[1] === '+' ? 1 : -1)));
     else if (parts[1] === 't') { const list = c[parts[0]].traits; const t = parts.slice(2).join('.'); const i = list.indexOf(t); if (i >= 0) list.splice(i, 1); else if (t !== 'Carnivore') list.push(t); }
-    else { const o = c[parts[0]]; const f = parts[1]; const lo = f === 'food' ? 0 : 1; o[f] = Math.max(lo, Math.min(6, (o[f] || 0) + (parts[2] === '+' ? 1 : -1))); }
+    else { const o = c[parts[0]]; const f = parts[1]; const lo = f === 'food' ? 0 : 1; o[f] = Math.max(lo, Math.min(f === 'food' ? o.pop : 6, (o[f] || 0) + (parts[2] === '+' ? 1 : -1))); if (o.food > o.pop) o.food = o.pop; }
     renderLab();
+  }
+  function calcEats(c, r) {
+    const horns = c.d.traits.indexOf('Horns') >= 0 && !(r.intel && r.intel.indexOf('Horns') >= 0);
+    const hunger = Math.max(0, c.a.pop - (horns ? 1 : 0));
+    const meat = Math.min(c.d.body, hunger);
+    return (r.intel ? 'With Intelligence: discard ' + r.intel.length + ' card' + (r.intel.length > 1 ? 's' : '') + ' to switch off ' + r.intel.join(' + ') + '. ' : '') +
+      (meat ? 'It eats ' + meat + ' meat' + (meat < c.d.body ? ' (as much as it is hungry for)' : '') : 'It dies to Horns before it eats') + (horns ? ', and loses 1 population to Horns.' : '.');
   }
   // build a tiny engine state from the calculator and ask the engine
   function calcResult(c) {
@@ -914,9 +925,10 @@
     row.push({ id: 4, body: c.rightBody, pop: 1, food: 0, fat: 0, traits: c.right.length ? [idOf('Warning Call')] : [], hidden: [] });
     const s = { players: [{ species: [A1] }, { species: row }] };
     const ti = row.indexOf(D);
-    let why = E.attackBlock(s, 0, 0, 1, ti);
+    const why = E.attackBlock(s, 0, 0, 1, ti);
     if (why && c.a.traits.indexOf('Intelligence') >= 0) {
-      for (const tid of D.traits) if (!E.attackBlock(s, 0, 0, 1, ti, tid)) return { ok: true, why: '', intel: T(tid) };
+      const need = E.intelNeeded(s, 0, 0, 1, ti, 7);
+      if (need && need.length) return { ok: true, why: '', intel: need };
     }
     return { ok: !why, why };
   }
