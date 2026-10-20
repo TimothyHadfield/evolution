@@ -68,7 +68,7 @@
     const ev = [];
     if (!next || !next.players) return ev;
     const V = p => (p === me ? undefined : 0.8); // other players' moves a little quieter
-    const deal = ids => ids.slice(0, 7).forEach(id => ev.push({ snd: 'cardDeal', anim: 'deal', el: '#hand [data-card="' + id + '"]', from: '.status [title="Draw pile"]', gap: 85 }));
+    const deal = ids => ids.slice(0, 7).forEach(id => ev.push({ snd: 'cardDeal', anim: 'deal', el: '#hand [data-card="' + id + '"]', from: '#deck', gap: 85 }));
     const myHand = v => (v && v.me && Array.isArray(v.me.hand) ? v.me.hand : []);
     if (!prev || !prev.players || prev.players.length !== next.players.length || next.round < prev.round) {
       if (o.fresh && !next.over) { ev.push({ snd: 'shuffle', gap: 480 }); deal(myHand(next)); }
@@ -196,10 +196,18 @@
   }
 
   // ------------------------------------------------------------------ playing the events
-  // a card arriving from the draw pile into its place in the hand (transform + opacity only)
-  function dealIn(el, from, FX, k) {
+  // a card arriving from the draw pile into its place in the hand (transform + opacity only).
+  // With the table kit (env.table) a card back leaves the top of the deck stack and the real card
+  // shows when it lands; the held fan keeps its own tilt.
+  function dealIn(el, from, FX, k, TB) {
     const st = FX.settings || {};
-    if (!st.animations || !el || !from || !el.animate || !from.getBoundingClientRect) return Promise.resolve();
+    const show = () => { if (el && el.style) el.style.visibility = ''; };
+    if (!st.animations || !el || !from) { show(); return Promise.resolve(); }
+    if (TB && TB.deal) {
+      if (el.style) el.style.visibility = 'hidden';
+      return Promise.resolve(TB.deal(from, el, { duration: Math.round(380 * k), cls: 'evo-back' })).then(show, show);
+    }
+    if (!el.animate || !from.getBoundingClientRect) return Promise.resolve();
     const a = el.getBoundingClientRect(), b = from.getBoundingClientRect();
     const dx = (b.left + b.width / 2) - (a.left + a.width / 2), dy = (b.top + b.height / 2) - (a.top + a.height / 2);
     return new Promise(res => {
@@ -215,7 +223,7 @@
       const el = e.el ? env.el(e.el) : null;
       if (e.celebrate) return FX.celebrate({ kind: e.celebrate, colors: e.colors || undefined, at: el || undefined }) || Promise.resolve();
       const ps = [];
-      if (e.anim === 'deal') ps.push(dealIn(el, env.el(e.from), FX, k));
+      if (e.anim === 'deal') ps.push(dealIn(el, env.el(e.from), FX, k, env.table));
       else if (e.anim === 'count') env.all(e.el).forEach((x, i) => { if (e.vals && e.vals[i] != null) ps.push(FX.countUp(x, 0, e.vals[i], { duration: 800 })); });
       else if (e.anim === 'flash' && el) ps.push(FX.flash(el, e.color));
       else if (e.anim && el && FX[e.anim]) ps.push(FX[e.anim](el));
@@ -226,6 +234,12 @@
   function perform(events, FX, env) {
     if (!events || !events.length || !FX) return Promise.resolve();
     const k = FX.settings && FX.settings.animSpeed === 'fast' ? 0.55 : 1;
+    // cards still to be dealt stay out of the hand until their card leaves the deck
+    if (env.table && FX.settings && FX.settings.animations) events.forEach(e => {
+      if (e.anim !== 'deal') return;
+      const el = env.el(e.el);
+      if (el && el.style) { el.style.visibility = 'hidden'; setTimeout(() => { el.style.visibility = ''; }, 4000); }
+    });
     let t = 0;
     return Promise.all(events.map(e => {
       const at = Math.round(t * k);

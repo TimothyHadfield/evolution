@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-10-20: real-table look (builder agent)
+- **Asked** (Tim, through the manager): make every game look like the real board/cards laid out on a real table, as if seen through the player's glasses.
+- **Built:** wood table; opponents' seats across the top; Watering Hole board with deck stack and messy discard pile; my species boards with cube tracks, food tokens and tucked trait cards; my hand as a fan; deal from the deck; food cards turn over one by one; score-pad end screen; sideways-phone layout. Shared `_table` kit copied in; fx.js re-copied (1.0.3).
+- **Verified:** engine 33, fx 8, online 7 tests pass. Headless WebKit at 320, 393, 659×393, 1280: no page scroll on the table, no overflow, no console errors. Effects speed tap leaves the game's Speed alone (measured). Deal ghosts start at the deck; reveal turns 3 cards in sequence (WebKit + Chrome). Two read-only review rounds against `real.md`.
+- **Open:** real iPhone check.
+
 ## 2026-10-20: first build (builder agent, phase 2 brief)
 - **Asked** (Tim, through the manager): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." Phase 2: regular play against computers or online players that matches the in-person game exactly, with good art, iPhone and laptop layouts, and no errors.
 - **Decided:**

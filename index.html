@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/table.css?v=5">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --card-hover: #212636; --line: #2a3042;
@@ -81,24 +82,35 @@
   .tok { vertical-align: -3px; flex: none; }
   .ti { display: block; }
 
-  /* ------------------------------------------------ trait cards */
-  .tc { position: relative; flex: none; width: 62px; height: 88px; border-radius: 8px; background: var(--paper); color: #1b1d24;
-    border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.45); display: flex; flex-direction: column; align-items: center;
-    cursor: pointer; user-select: none; transition: transform .14s ease, box-shadow .14s, outline-color .14s, opacity .14s; outline: 2px solid transparent; outline-offset: 1px; }
-  .tc .fd { position: absolute; left: 3px; top: 3px; min-width: 19px; height: 19px; border-radius: 10px; background: #2c5c28; color: #fff;
-    font-size: 11.5px; font-weight: 850; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-variant-numeric: tabular-nums; }
-  .tc .fd.neg { background: #7d231b; }
-  .tc .ti { width: 34px; height: 34px; margin-top: 18px; }
-  .tc .tn { font-size: 10px; font-weight: 800; text-align: center; line-height: 1.05; padding: 0 3px; margin-top: auto; margin-bottom: 5px; min-height: 21px; display: flex; align-items: center; justify-content: center; max-width: 100%; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
+  /* ------------------------------------------------ trait cards: real 63x88 cards (css/table.css .tbl-card)
+     name across the top, the animal drawing in the middle, the plant-food leaf in the bottom-right corner */
+  .tc, .tcf { --card-paper: var(--paper); color: #1b1d24; user-select: none; overflow: hidden; }
+  .tc { --card-w: 62px; cursor: pointer; display: block; outline: 2px solid transparent; outline-offset: 1px;
+    transition: transform .14s ease, box-shadow .14s, outline-color .14s, opacity .14s; }
+  .tc:not(.tbl-back)::before, .tcf::before { content: ""; position: absolute; inset: calc(var(--card-w) * .05); border: 1.5px solid var(--ink);
+    border-radius: calc(var(--card-w) * .045); pointer-events: none; opacity: .85; }
+  .tc .tn, .tcf .tn { position: absolute; left: 10%; right: 8%; top: 8%; font-size: calc(var(--card-w) * .148); font-weight: 850; line-height: 1.02;
+    color: var(--ink); text-align: center; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; letter-spacing: -.01em; }
+  .tc .art, .tcf .art { position: absolute; left: 10%; right: 10%; top: 33%; bottom: 15%; border-radius: calc(var(--card-w) * .04); display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse 90% 45% at 50% 108%, rgba(0,0,0,.13), transparent 70%), linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.12)); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  .tc .art .ti, .tcf .art .ti { width: 62%; height: auto; }
+  .tc .fd, .tcf .fd { position: absolute; right: 3%; bottom: 2.5%; width: calc(var(--card-w) * .34); height: calc(var(--card-w) * .27); border-radius: 0 70% 0 70%;
+    background: #2c5c28; color: #fff; font-size: calc(var(--card-w) * .17); font-weight: 850; display: flex; align-items: center; justify-content: center;
+    font-variant-numeric: tabular-nums; box-shadow: 0 1px 2px rgba(0,0,0,.35); line-height: 1; }
+  .tc .fd.neg, .tcf .fd.neg { background: #7d231b; }
   .tc .tx { display: none; }
-  .tc.sel { transform: translateY(-10px); outline-color: var(--accent-warm); box-shadow: 0 10px 18px rgba(0,0,0,.55); }
-  .tc.used { opacity: .3; transform: scale(.94); }
-  .tc.back { background: repeating-linear-gradient(45deg, #2b3a52 0 6px, #24324a 6px 12px); border-color: #3c4c68; }
-  .tc.big { width: 170px; height: 240px; border-radius: 14px; cursor: default; }
-  .tc.big .ti { width: 74px; height: 74px; margin-top: 30px; }
-  .tc.big .tn { font-size: 17px; margin: 6px 0 0; min-height: 0; }
-  .tc.big .tx { display: block; font-size: 12.5px; text-align: center; padding: 6px 10px; line-height: 1.3; }
-  .tc.big .fd { width: 30px; height: 30px; border-radius: 15px; font-size: 15px; left: 6px; top: 6px; }
+  .tc.sel { outline-color: var(--accent-warm); }
+  .tc.used { opacity: .3; }
+  /* our own card back: earth brown with a leaf ring (no publisher art) */
+  .tbl-back.evo-back { --back: #5a3d22; --back-frame: #3b2814; --ink: rgba(170,205,110,.4);
+    background-image: radial-gradient(circle at 50% 50%, #8fbf5a 0 8%, transparent 8.5%), radial-gradient(circle at 50% 50%, transparent 0 19%, rgba(170,205,110,.55) 19.5% 23%, transparent 23.5% 31%, rgba(170,205,110,.3) 31.5% 33.5%, transparent 34%),
+      repeating-linear-gradient(60deg, rgba(0,0,0,.13) 0 2px, transparent 2px 6px); }
+  .tc.big { --card-w: 176px; cursor: default; }
+  .tc.big .art { top: 22%; bottom: 46%; }
+  .tc.big .art .ti { width: auto; height: 82%; }
+  .tc.big .tx { display: block; position: absolute; left: 10%; right: 10%; top: 57%; bottom: 17%; font-size: 12px; line-height: 1.28; overflow: hidden; }
+  .tc.big .fd { font-size: 20px; }
+  .tc.big .tn { font-size: 19px; }
   @keyframes deal { from { transform: translateY(30px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes bite { 0% { transform: none; } 30% { transform: translateX(-4px) rotate(-2deg); } 60% { transform: translateX(4px) rotate(2deg); } 100% { transform: none; } }
@@ -106,141 +118,250 @@
   .popin { animation: pop .3s ease-out both; }
   .bitten { animation: bite .45s ease-in-out; }
 
-  /* ------------------------------------------------ species boards */
-  .sp { position: relative; flex: none; width: 86px; background: linear-gradient(180deg, #2b2418, #221d14); border: 1.5px solid #4d4128; border-radius: 10px;
-    padding: 5px 5px 4px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: outline-color .14s, transform .14s, opacity .2s; outline: 2px solid transparent; outline-offset: 1px; }
-  .sp .fr { display: flex; flex-wrap: wrap; gap: 2px; min-height: 16px; justify-content: center; }
-  .sp .slot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px dashed #6c5d3c; }
-  .sp .slot.fatslot { border-color: #8b6a14; border-radius: 3px; }
-  .sp .dials { display: flex; justify-content: space-between; align-items: center; }
-  .dial { display: inline-flex; flex-direction: column; align-items: center; font-size: 9px; letter-spacing: .06em; color: #d8c79c; text-transform: uppercase; font-weight: 700; line-height: 1; }
-  .dial b { width: 25px; height: 25px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14.5px; font-weight: 850; color: #1a1306; background: var(--c); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25); margin-bottom: 2px; }
-  .sp .trs { display: flex; flex-direction: column; gap: 2px; min-height: 64px; }
-  .tr { display: flex; align-items: center; gap: 3px; background: var(--paper); color: #1b1d24; border-radius: 5px; padding: 1px 3px 1px 2px; font-size: 9.6px; font-weight: 750; line-height: 1; min-height: 20px; border-left: 3px solid var(--ink); overflow: hidden; }
+  /* ------------------------------------------------ species boards: cardboard boards with the Body size and
+     Population tracks (1-6, a wooden cube on each), food tokens on the board, trait cards tucked above it */
+  .sp { position: relative; flex: none; width: 94px; display: flex; flex-direction: column; cursor: pointer; border-radius: 8px;
+    transition: outline-color .14s, transform .14s, opacity .2s; outline: 2px solid transparent; outline-offset: 2px; }
+  .sp .trs { display: flex; flex-direction: column; justify-content: flex-end; padding: 0 5px; min-height: 58px; }
+  .tr { position: relative; display: flex; align-items: center; gap: 3px; background: var(--paper); color: #1b1d24; border-radius: 5px 5px 0 0;
+    padding: 2px 3px 4px 2px; margin-bottom: -2px; font-size: 9.6px; font-weight: 750; line-height: 1; min-height: 20px;
+    border: 1px solid rgba(0,0,0,.45); border-bottom: 0; border-left: 3px solid var(--ink); box-shadow: 0 -1px 3px rgba(0,0,0,.35); overflow: hidden; }
   .tr .ti { width: 14px; height: 14px; flex: none; }
   .tr span { min-width: 0; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
-  .tr.empty { background: none; border: 1px dashed #4d4128; border-left-width: 1px; }
-  .tr.hid { background: repeating-linear-gradient(45deg, #2b3a52 0 4px, #24324a 4px 8px); border-left-color: #3c4c68; color: #9fb0cc; }
-  .tr.new { outline: 1.5px dashed var(--accent-warm); }
-  .sp.can { outline-color: rgba(110,168,254,.9); }
+  .tr.empty { background: rgba(0,0,0,.08); border: 1px dashed rgba(255,236,200,.15); border-bottom: 0; box-shadow: none; }
+  .tr.hid { background-color: #5a3d22; background-image: radial-gradient(circle at 50% 50%, rgba(170,205,110,.5) 0 3px, transparent 3.5px), repeating-linear-gradient(60deg, rgba(0,0,0,.18) 0 2px, transparent 2px 6px);
+    border-left-color: #3b2814; color: #d9c7a4; }
+  .tr.new { outline: 1.5px dashed var(--accent-warm); outline-offset: -2px; }
+  .sp .board { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 2px; padding: 4px 4px 4px; border-radius: 6px; color: #3b2c14;
+    background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255,255,255,.22), transparent 70%), linear-gradient(180deg, #d8c393, #c2a670);
+    border: 1px solid #7b6235; box-shadow: 0 1px 0 #9b8050, 0 2px 0 #6e5630, 0 4px 8px rgba(0,0,0,.5); }
+  .sp .fr { display: flex; flex-wrap: wrap; gap: 2px; min-height: 13px; justify-content: center; padding-bottom: 1px; }
+  .ftk { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; --c: #5fae5a; --d: #2c5c28;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.4), transparent 45%), var(--c); box-shadow: 0 1px 0 var(--d), 0 2px 2px rgba(0,0,0,.4); }
+  .ftk.meat { --c: #d0574a; --d: #7d231b; }
+  .ftk.fat { --c: #e9c46a; --d: #8b6a14; border-radius: 3px; }
+  .sp .slot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px dashed rgba(70,50,20,.45); }
+  .sp .slot.fatslot { border-color: rgba(139,106,20,.75); border-radius: 3px; }
+  .trk { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; align-items: center; }
+  .trk .tl { grid-column: 1 / -1; font-size: 7.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; color: rgba(59,44,20,.75); line-height: 1; }
+  .trk i { height: 13px; font-style: normal; font-size: 8px; font-weight: 700; color: rgba(59,44,20,.5); display: flex; align-items: center; justify-content: center;
+    background: rgba(255,250,232,.38); border-radius: 2px; font-variant-numeric: tabular-nums; }
+  .trk i.on { background: none; }
+  .cube { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 15px; height: 15px; border-radius: 2px; background: var(--cube); color: #fff;
+    font-size: 10.5px; font-weight: 850; font-style: normal; line-height: 1; text-shadow: 0 1px 0 rgba(0,0,0,.35);
+    box-shadow: inset -2px -2px 0 rgba(0,0,0,.28), inset 1px 1px 0 rgba(255,255,255,.32), 1px 2px 2px rgba(0,0,0,.45); }
+  .cube.b { --cube: #8a5a2b; } .cube.p { --cube: #3f8a3a; }
+  .sp.can { outline-color: rgba(110,168,254,.95); }
   .sp.sel { outline-color: var(--accent-warm); transform: translateY(-3px); }
-  .sp.fed { border-color: #5a7a3c; }
+  .sp.fed .board { box-shadow: 0 0 0 2px rgba(110,200,90,.65), 0 2px 0 #6e5630, 0 4px 8px rgba(0,0,0,.5); }
   .sp.gone { opacity: .25; }
-  .sp .flag { position: absolute; top: -7px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .sp .flag { position: absolute; z-index: 2; top: -7px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
   .sp .flag.danger { background: var(--meat); color: #fff; }
   .sp .flag.carn { background: #7d231b; color: #fff; left: -5px; right: auto; }
-  .sp.carnivore { background: linear-gradient(180deg, #34211b, #261813); border-color: #6e3a2c; }
-  .newsp { flex: none; width: 46px; border: 1.5px dashed var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 22px; cursor: pointer; background: none; }
+  .sp.carnivore .board { background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255,255,255,.2), transparent 70%), linear-gradient(180deg, #d9b597, #c0926f); border-color: #7a4430; }
+  .newsp { flex: none; width: 46px; border: 2px dashed rgba(255,236,200,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: rgba(255,236,200,.6); font-size: 22px; cursor: pointer; background: rgba(0,0,0,.1); }
   .newsp.can { border-color: var(--accent); color: var(--accent); }
+  /* my own first-player token and food bag, on the table beside my boards */
+  .mine .side-bits { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 2px 4px; }
+  .fp { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; font: 850 9.5px/1 system-ui, sans-serif; color: #3b2a12; letter-spacing: -.02em;
+    background: radial-gradient(closest-side, #e7c873 0 74%, #6b4f1c 76% 80%, #e7c873 82%); box-shadow: 0 2px 0 rgba(0,0,0,.3), 0 3px 0 #5d4a2a, 0 4px 5px rgba(0,0,0,.45); }
+  .bag { position: relative; display: inline-flex; flex: none; width: 28px; height: 30px; filter: drop-shadow(1px 3px 2px rgba(0,0,0,.5)); }
+  .bag svg { width: 100%; height: 100%; display: block; }
+  .bag b { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 11px; font-weight: 850; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8); font-variant-numeric: tabular-nums; }
 
-  /* mini species (opponents) */
-  .msp { flex: none; display: flex; flex-direction: column; gap: 2px; background: #241f15; border: 1px solid #4d4128; border-radius: 7px; padding: 3px 4px; min-width: 50px; cursor: pointer; transition: outline-color .14s; outline: 2px solid transparent; }
-  .msp.carnivore { background: #2e1c17; border-color: #6e3a2c; }
-  .msp .bp { display: flex; gap: 3px; align-items: center; font-size: 12.5px; font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .msp .bp .b { color: var(--accent-warm); } .msp .bp .p { color: var(--accent); }
-  .msp .fdots { display: flex; flex-wrap: wrap; gap: 2px; max-width: 70px; }
-  .msp .fdots i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid #8a7850; }
-  .msp .fdots i.on { background: var(--plant); border-color: var(--plant); }
-  .msp .fdots i.fat { background: var(--fat); border-color: var(--fat); border-radius: 1px; }
-  .msp .ics { display: flex; gap: 2px; }
-  .msp .ics .ic { width: 17px; height: 17px; background: var(--paper); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
-  .msp .ics .ti { width: 14px; height: 14px; }
-  .msp .ics .hidden { width: 17px; height: 17px; border-radius: 4px; background: repeating-linear-gradient(45deg, #2b3a52 0 3px, #24324a 3px 6px); }
+  /* mini species (opponents): the same board in miniature, tiny card tops above it */
+  .msp { flex: none; display: flex; flex-direction: column; align-items: stretch; cursor: pointer; border-radius: 5px; min-width: 44px; transition: outline-color .14s; outline: 2px solid transparent; outline-offset: 1px; }
+  .msp .ics { display: flex; gap: 1px; justify-content: center; padding: 0 3px; margin-bottom: -2px; min-height: 0; }
+  .msp .ics .ic, .msp .ics .hidden { width: 16px; height: 17px; flex: none; border-radius: 3px 3px 0 0; border: 1px solid rgba(0,0,0,.45); border-bottom: 0; box-shadow: 0 -1px 2px rgba(0,0,0,.3);
+    display: flex; align-items: flex-start; justify-content: center; padding-top: 1px; }
+  .msp .ics .ic { background: var(--paper); border-top: 2px solid var(--ink); }
+  .msp .ics .ti { width: 12px; height: 12px; }
+  .msp .ics .hidden { background-color: #5a3d22; background-image: radial-gradient(circle at 50% 55%, rgba(170,205,110,.55) 0 2.5px, transparent 3px), repeating-linear-gradient(60deg, rgba(0,0,0,.18) 0 2px, transparent 2px 5px); }
+  .msp .mb { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 2px; padding: 3px 4px; border-radius: 4px; color: #3b2c14;
+    background: linear-gradient(180deg, #d8c393, #c2a670); border: 1px solid #7b6235; box-shadow: 0 1px 0 #6e5630, 0 3px 5px rgba(0,0,0,.45); }
+  .msp.carnivore .mb { background: linear-gradient(180deg, #d9b597, #c0926f); border-color: #7a4430; }
+  .msp .bp { display: flex; gap: 3px; align-items: center; justify-content: center; }
+  .msp .bp .cube { width: 16px; height: 16px; font-size: 11px; }
+  .msp .fdots { display: flex; flex-wrap: wrap; gap: 2px; max-width: 70px; justify-content: center; min-height: 7px; }
+  .msp .fdots i { width: 7px; height: 7px; border-radius: 50%; border: 1px dashed rgba(70,50,20,.5); }
+  .msp .fdots i.on { background: var(--plant); border: 0; box-shadow: 0 1px 0 #2c5c28; }
+  .msp .fdots i.on.meat { background: var(--meat); box-shadow: 0 1px 0 #7d231b; }
+  .msp .fdots i.fat { background: var(--fat); border: 0; border-radius: 1px; box-shadow: 0 1px 0 #8b6a14; }
   @keyframes prey { 0%, 100% { box-shadow: 0 0 0 2px rgba(240,106,90,.25); } 50% { box-shadow: 0 0 0 5px rgba(240,106,90,.38); } }
   .msp.can, .sp.prey { outline-color: #f06a5a; animation: prey 1.3s ease-in-out infinite; }
   .msp.tgt, .sp.tgt { outline-color: var(--accent-warm); box-shadow: 0 0 0 4px rgba(240,179,84,.3); animation: none; }
   .msp.gone { opacity: .25; }
+  /* a trait card turned face up at the reveal: a quick 3-D turn */
+  @keyframes flipin { 0% { transform: perspective(260px) rotateX(-90deg); opacity: .4; } 100% { transform: none; opacity: 1; } }
+  .flipin { animation: flipin .5s cubic-bezier(.3,.7,.3,1) both; transform-origin: 50% 100%; }
 
-  /* ------------------------------------------------ play layout */
+  /* ------------------------------------------------ play layout: a wooden table seen from your seat.
+     Opponents across the far side, the watering hole with the deck and discards in the middle,
+     your species boards in front of you, your hand held at the bottom edge. */
+  #v-play.tbl-surface { color: var(--text); }
   #game { flex: 1; min-height: 0; display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, max-content) auto auto minmax(101px, 1fr) auto; grid-template-areas: "status" "opps" "hole" "mine" "hand" "acts"; }
+    grid-template-rows: auto minmax(0, max-content) auto max-content minmax(96px, 1fr) auto; grid-template-areas: "status" "opps" "hole" "mine" "hand" "acts"; }
   .status { grid-area: status; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; }
-  .status .ph { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .2s; }
+  .status .ph { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .2s; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
   .status .ph.me { color: var(--accent-warm); }
   .pill { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 2px 7px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #game .pill, #game .icon-btn { background: rgba(14,10,6,.45); border-color: rgba(255,236,200,.16); }
   .icon-btn { position: relative; width: 36px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; padding: 0; transition: transform .08s; }
   .icon-btn::after { content: ""; position: absolute; inset: -5px -2px; } /* 40x42 tap area without a taller bar */
   .icon-btn:active { transform: scale(.94); }
   .icon-btn svg { width: 18px; height: 18px; }
+  /* opponents' places across the table: name plate, hand of card backs, food bag, their boards */
   .opps { grid-area: opps; display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; }
-  .opp { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px 7px 5px; display: flex; flex-direction: column; gap: 3px; min-width: 0; transition: border-color .2s, box-shadow .2s; }
-  .opp.turn { border-color: var(--accent-warm); box-shadow: 0 0 0 1px rgba(240,179,84,.35); }
-  @media (max-width: 899px) {
-    /* 3+ computers: two columns of compact rows so every opponent shows without scrolling */
-    #game.crowd { gap: 5px; }
-    .opps.many { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
-    .opps.many .opp { padding: 2px 5px 3px; gap: 1px; border-radius: 9px; }
-    .opps.many .oh { font-size: 11.5px; gap: 4px; }
-    .opps.many .oh .nmx { flex: none; max-width: 62%; }
-    .opps.many .oh .st { font-size: 10.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .opps.many .oh .pill { padding: 0 4px; font-size: 10.5px; }
-    .opps.many .ospc { gap: 3px; }
-    .opps.many .opp .oh { line-height: 1.1; }
-    .opps.many .msp { padding: 1px 3px 2px; min-width: 0; display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 2px 4px; }
-    .opps.many .msp .ics { grid-column: 1 / -1; }
-    .opps.many .msp .ics .ic, .opps.many .msp .ics .hidden { width: 15px; height: 15px; border-radius: 3px; }
-    .opps.many .msp .ics .ti { width: 12px; height: 12px; }
-    .opps.many .msp .bp { font-size: 12px; line-height: 1.05; }
-  }
+  /* no box around a seat: just the name plate and that player's things on the wood (the plate glows on their turn) */
+  .opp { background: none; border-radius: 10px; padding: 4px 6px 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .opp .oh { display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
-  .opp .oh .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .opp .plate { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 60%; padding: 1px 7px; border-radius: 4px; color: #f6efdc;
+    background: linear-gradient(#3b2a1a, #24180d); border: 1px solid #7a5a2e; box-shadow: inset 0 1px 0 rgba(255,220,150,.25), 0 2px 4px rgba(0,0,0,.4); line-height: 17px; }
+  .opp.turn .plate { border-color: #f0c35a; box-shadow: 0 0 0 2px rgba(240,195,90,.45), 0 2px 4px rgba(0,0,0,.4); }
+  .opp .oh .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
   .opp .oh .nmx { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .opp .oh .st { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .opp .ospc { display: flex; gap: 4px; overflow-x: auto; padding: 3px; margin: -3px; } /* room for the target glow */
-  .hole { grid-area: hole; display: flex; align-items: center; gap: 8px; background: linear-gradient(180deg, #16241c, #121c17); border: 1px solid #23483b; border-radius: 10px; padding: 3px 8px; min-width: 0; cursor: pointer; }
-  .hole .pond { width: 64px; height: 34px; flex: none; display: block; }
-  .hole .hn { font-size: 26px; font-weight: 850; font-variant-numeric: tabular-nums; color: #bfe6b0; line-height: 1; }
-  .hole .hl { font-size: 10.5px; color: #a9d8c4; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
-  .hole .fcards { display: flex; gap: 3px; min-width: 0; }
-  @media (max-width: 899px) { .hole .fcards .tc.back + .tc.back { margin-left: -9px; box-shadow: -2px 0 4px rgba(0,0,0,.4); } }
-  .hole .fcards .tc { width: 22px; height: 31px; border-radius: 4px; border-width: 1px; cursor: default; }
-  .hole .fcards .tc .ti, .hole .fcards .tc .tn { display: none; }
-  .hole .fcards .tc .fd { left: 1px; top: 6px; min-width: 18px; height: 16px; font-size: 10px; padding: 0 2px; }
-  .hole .odds { font-size: 12px; color: #a9d8c4; text-align: right; line-height: 1.25; white-space: nowrap; flex: none; }
-  .hole .odds b { color: #fff; }
-  .mine { grid-area: mine; display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 3px; align-items: stretch; min-width: 0; }
+  .opp .oh .st { color: rgba(243,239,228,.7); white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .opp .oh .fp { width: 20px; height: 20px; font-size: 8px; }
+  .opp .oh .bag { width: 20px; height: 22px; }
+  .opp .oh .bag b { font-size: 9.5px; bottom: 2px; }
+  /* a held hand of card backs, in miniature */
+  .ohand { position: relative; display: inline-flex; align-items: flex-end; flex: none; height: 20px; padding-right: 2px; }
+  .ohand i { display: block; width: 12px; height: 17px; margin-left: -7px; border-radius: 2px; transform-origin: 50% 100%; transform: rotate(var(--r));
+    background-color: #5a3d22; background-image: radial-gradient(circle at 50% 50%, rgba(170,205,110,.6) 0 2px, transparent 2.5px); border: 1px solid #2a1a0c; box-shadow: 0 1px 2px rgba(0,0,0,.45); }
+  .ohand i:first-child { margin-left: 0; }
+  .ohand b { margin-left: 3px; font-size: 11px; font-weight: 800; color: #f3efe4; font-variant-numeric: tabular-nums; line-height: 1; align-self: center; }
+  .opp .ospc { display: flex; gap: 5px; overflow-x: auto; padding: 3px; margin: -3px; align-items: flex-end; } /* room for the target glow */
+  @media (max-width: 899px) {
+    /* 3+ computers: two columns of compact places so every opponent shows without scrolling */
+    #game.crowd { gap: 5px; grid-template-rows: auto minmax(0, max-content) auto max-content minmax(86px, 1fr) auto; }
+    .opps.many { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+    .opps.many .opp { padding: 2px 4px 3px; gap: 2px; border-radius: 9px; }
+    .opps.many .oh { font-size: 11px; gap: 3px; }
+    .opps.many .opp .plate { padding: 0 5px; line-height: 15px; gap: 4px; max-width: 58%; }
+    .opps.many .oh .st { display: none; }
+    .opps.many .ohand { height: 16px; } .opps.many .ohand i { width: 10px; height: 14px; }
+    .opps.many .opp .oh .bag { width: 16px; height: 18px; } .opps.many .opp .oh .bag b { font-size: 9px; bottom: 1px; }
+    .opps.many .opp .oh .fp { width: 17px; height: 17px; font-size: 7px; }
+    .opps.many .ospc { gap: 3px; }
+    .opps.many .msp { min-width: 0; flex-direction: row; align-items: stretch; }
+    .opps.many .msp .ics { flex-direction: column; justify-content: center; padding: 2px 0; margin: 0 -2px 0 0; gap: 1px; }
+    .opps.many .msp .ics .ic, .opps.many .msp .ics .hidden { width: 15px; height: 13px; border-radius: 3px 0 0 3px; border: 1px solid rgba(0,0,0,.45); border-right: 0; border-top-width: 1px; padding: 0; align-items: center; }
+    .opps.many .msp .ics .ic { border-left: 2px solid var(--ink); }
+    .opps.many .msp .ics .ti { width: 11px; height: 11px; }
+    .opps.many .msp .mb { padding: 2px 3px; }
+    .opps.many .msp .bp .cube { width: 14px; height: 14px; font-size: 10px; }
+    .opps.many .msp .ics .ic, .opps.many .msp .ics .hidden { height: 11px; }
+    .opps.many .msp .ics .ti { width: 9px; height: 9px; }
+    /* a crowded table: a slightly smaller middle and hand so every place fits */
+    #game.crowd .hole { padding: 0 2px 2px; }
+    #game.crowd .hole .pondw { width: 74px; height: 42px; }
+    #game.crowd .hole .hn { font-size: 21px; }
+    #game.crowd .hole .fcards > * { --card-w: 24px; }
+    #game.crowd .hole .deckw, #game.crowd .hole #discard, #game.crowd .hole #discard .tc { --card-w: 26px; }
+    #game.crowd .hand .tc { --card-w: 54px; }
+    #game.crowd .mine { padding-top: 6px; padding-bottom: 4px; }
+  }
+  /* the middle of the table: draw deck, the Watering Hole board, the discard pile */
+  .hole { grid-area: hole; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 2px 4px; }
+  .hole .deckw, .hole .discw { flex: none; display: flex; flex-direction: column; align-items: center; --card-w: 30px; }
+  .hole #discard { --card-w: 30px; }
+  .hole .wh { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; cursor: pointer; border-radius: 10px;
+    background: radial-gradient(ellipse 60% 80% at 25% 50%, rgba(255,255,255,.12), transparent 70%), linear-gradient(160deg, #5f8045, #48662f 60%, #3d5a29);
+    border: 1px solid #2f4422; box-shadow: 0 1px 0 #2a3c1d, 0 2px 0 #1f2d15, 0 5px 10px rgba(0,0,0,.5); }
+  .hole .pondw { position: relative; flex: none; width: 82px; height: 48px; }
+  .hole .pond { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hole .ptoks { position: absolute; inset: 0; pointer-events: none; }
+  .hole .ptoks .ftk { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; }
+  .hole .hnw { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .hole .hn { font-size: 24px; font-weight: 850; font-variant-numeric: tabular-nums; color: #fff; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(10,40,70,.9); }
+  .hole .hl { font-size: 8px; color: #e6f3dc; letter-spacing: .1em; text-transform: uppercase; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.9); }
+  .hole .fcards { display: flex; min-width: 0; align-items: center; padding-left: 2px; }
+  .hole .fcards > * { --card-w: 27px; cursor: default; flex: none; position: relative; }
+  .hole .fcards > * + * { margin-left: -12px; }
+  .hole .fcards .tn { display: none; }
+  .hole .fcards .art { top: 10%; bottom: 40%; }
+  .hole .fcards .fd { width: 21px; height: 16px; font-size: 10px; right: 1px; bottom: 1px; }
+  .hole .fcards .tc::before, .hole #discard .tc::before { inset: 2px; border-width: 1px; }
+  .hole #discard .tc { --card-w: 30px; cursor: default; }
+  .hole #discard .tn { display: none; }
+  .hole #discard .art { top: 10%; bottom: 40%; }
+  .hole #discard .fd { width: 21px; height: 16px; font-size: 10px; right: 1px; bottom: 1px; }
+  .hole .odds { margin-left: auto; font-size: 11px; color: #3b2c14; text-align: right; line-height: 1.25; white-space: nowrap; flex: none; padding: 3px 6px; border-radius: 2px;
+    background: linear-gradient(#f6f0de, #ece2c6); box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.3); transform: rotate(-2deg); }
+  .hole .odds b { color: #1d150a; }
+  .hole .odds .muted { color: #7d6a48; }
+  .mine { grid-area: mine; display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 6px; align-items: stretch; min-width: 0; min-height: -webkit-max-content; min-height: max-content; }
   .mine .mylab { display: none; }
-  .hand { grid-area: hand; display: flex; gap: 5px; overflow-x: auto; padding: 11px 2px 2px; min-height: 101px; align-items: flex-end; min-width: 0; }
-  .hand:empty::before { content: "No cards"; color: var(--muted); font-size: 13px; margin: auto; }
+  /* my hand, held as a fan (css/table.css .tbl-fan; js/table.js lays it out) */
+  .hand { grid-area: hand; position: relative; align-self: end; min-width: 0; min-height: 60px; }
+  .hand .tc { --card-w: 60px; }
+  /* held so each card sits on the one to its right: every food leaf (bottom right) stays in view */
+  .hand.tbl-fan > .tbl-card { z-index: var(--z) !important; }
+  .hand.tbl-fan > .tbl-card.is-up { z-index: 60 !important; }
+  .hand .tc .tn { left: 19%; right: 5%; }
+  .hand .tc.sel { box-shadow: 0 0 0 2px var(--accent-warm), 0 2px 3px rgba(0,0,0,.25), 0 12px 22px rgba(0,0,0,.45); }
+  .hand:empty::before { content: "No cards"; color: rgba(243,239,228,.6); font-size: 13px; position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; }
   .acts { grid-area: acts; display: flex; gap: 7px; min-height: 44px; align-items: center; }
   .acts .btn { flex: 1; padding: 0 8px; }
-  .acts .msg { flex: 1.4; font-size: 13px; color: var(--muted); line-height: 1.25; min-width: 0; }
-  .acts .msg b { color: var(--text); }
+  .acts .msg { flex: 1.4; font-size: 13px; color: rgba(243,239,228,.78); line-height: 1.25; min-width: 0; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .acts .msg b { color: #fff; }
   #g-side { display: none; }
+  /* a phone held sideways: the hand and buttons move to the right edge, the table keeps the left */
+  @media (max-width: 899px) and (max-height: 480px) and (orientation: landscape) {
+    #game, #game.crowd { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); gap: 4px 10px;
+      grid-template-rows: auto minmax(0, 1fr) auto max-content auto;
+      grid-template-areas: "status status" "opps hand" "hole hand" "mine hand" "mine acts"; }
+    .hand { align-self: center; }
+    .mine { padding-top: 4px; }
+  }
   @media (min-width: 900px) {
-    #game { grid-template-columns: 330px minmax(0, 1fr) 290px; grid-template-rows: auto auto minmax(0, max-content) minmax(160px, 1fr) auto;
-      grid-template-areas: "status status side" "opps hole side" "opps mine side" "opps hand side" "opps acts side"; gap: 10px; }
+    #game { grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: auto minmax(0, max-content) minmax(0, 1fr) max-content auto auto;
+      grid-template-areas: "status side" "opps side" "hole side" "mine side" "hand side" "acts side"; gap: 8px 14px; }
     .status .ph { font-size: 16px; }
-    .opps { gap: 8px; }
-    .opp { padding: 6px 9px 8px; gap: 5px; }
+    .opps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; align-items: start; }
+    .opp { padding: 5px 8px 7px; gap: 5px; }
     .opp .oh { font-size: 13.5px; }
-    .msp { padding: 4px 5px; min-width: 58px; }
-    .msp .bp { font-size: 14px; }
-    .msp .fdots i { width: 8px; height: 8px; }
-    .msp .ics .ic, .msp .ics .hidden { width: 20px; height: 20px; }
-    .msp .ics .ti { width: 16px; height: 16px; }
-    .hole { padding: 8px 14px; }
-    .hole .pond { width: 170px; height: 76px; }
+    .msp { min-width: 74px; }
+    .msp .mb { padding: 5px 7px; gap: 4px; }
+    .msp .bp .cube { width: 24px; height: 24px; font-size: 15px; }
+    .msp .fdots { max-width: 96px; }
+    .msp .fdots i { width: 10px; height: 10px; }
+    .msp .ics .ic, .msp .ics .hidden { width: 24px; height: 26px; }
+    .msp .ics .ti { width: 19px; height: 19px; }
+    .opp .ospc { gap: 10px; }
+    .hole { gap: 16px; justify-content: center; padding: 4px 0 6px; }
+    .hole .deckw, .hole .discw, .hole #discard { --card-w: 50px; }
+    .hole .wh { flex: 0 1 600px; padding: 8px 14px 8px 10px; gap: 12px; border-radius: 12px; }
+    .hole .pondw { width: 190px; height: 92px; }
+    .hole .ptoks .ftk { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; }
     .hole .hn { font-size: 40px; }
-    .hole .fcards .tc { width: 30px; height: 42px; }
-    .mine { align-items: flex-start; align-content: flex-start; flex-wrap: wrap; overflow-y: auto; gap: 10px; padding-top: 10px; }
-    .sp { width: 150px; padding: 8px; gap: 6px; border-radius: 12px; }
-    .sp .fr { min-height: 20px; gap: 3px; }
-    .sp .fr .tok { width: 18px; height: 18px; }
-    .sp .slot { width: 18px; height: 18px; }
-    .dial { font-size: 10px; }
-    .dial b { width: 44px; height: 44px; font-size: 23px; }
-    .tr { font-size: 13px; min-height: 28px; gap: 5px; padding: 2px 5px 2px 3px; }
+    .hole .hl { font-size: 10px; }
+    .hole .fcards > * { --card-w: 46px; }
+    .hole .fcards > * + * { margin-left: -16px; }
+    .hole .fcards .art { top: 30%; bottom: 36%; }
+    .hole .fcards .fd { width: 26px; height: 20px; font-size: 12.5px; }
+    .hole .fcards .tn { display: block; font-size: 6.5px; }
+    .hole #discard .tc { --card-w: 50px; }
+    .hole #discard .fd { width: 26px; height: 20px; font-size: 12.5px; }
+    .hole .odds { font-size: 13px; padding: 5px 9px; }
+    .mine { align-items: flex-end; align-content: flex-end; flex-wrap: wrap; overflow-y: auto; gap: 12px; padding-top: 10px; justify-content: center; }
+    .sp { width: 150px; }
+    .sp .trs { min-height: 84px; padding: 0 8px; }
+    .sp .board { padding: 6px 7px 7px; gap: 3px; border-radius: 9px; }
+    .sp .fr { min-height: 18px; gap: 3px; }
+    .ftk { width: 17px; height: 17px; }
+    .sp .slot { width: 17px; height: 17px; }
+    .trk { gap: 2px; }
+    .trk .tl { font-size: 9px; margin-top: 2px; }
+    .trk i { height: 19px; font-size: 10.5px; }
+    .cube { width: 21px; height: 21px; font-size: 13.5px; }
+    .tr { font-size: 12.5px; min-height: 28px; gap: 5px; padding: 3px 5px 5px 3px; }
     .tr .ti { width: 20px; height: 20px; }
-    .sp .trs { min-height: 92px; gap: 4px; }
-    .newsp { width: 60px; min-height: 200px; font-size: 28px; }
-    .hand { min-height: 160px; gap: 8px; }
-    .hand .tc { width: 100px; height: 140px; border-radius: 10px; }
-    .hand .tc .fd { min-width: 24px; height: 24px; border-radius: 12px; font-size: 13.5px; left: 5px; top: 5px; }
-    .hand .tc .ti { width: 54px; height: 54px; margin-top: 28px; }
-    .hand .tc .tn { font-size: 13px; }
+    .newsp { width: 60px; min-height: 180px; font-size: 28px; }
+    .hand { min-height: 150px; }
+    .hand .tc { --card-w: 98px; }
     #g-side { display: flex; grid-area: side; flex-direction: column; gap: 10px; min-height: 0; }
-    #g-side .panel { padding: 10px 12px; }
+    #g-side .panel { padding: 10px 12px; background: rgba(22,14,7,.74); border-color: rgba(255,236,200,.14); }
     #g-side .threatbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #g-side .logbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #btn-sheet-log { display: none; }
@@ -341,10 +462,18 @@
   .confirm-back .panel { max-width: 360px; width: 100%; }
   #v-play { position: relative; }
   #over { position: absolute; z-index: 40; } /* the result card covers the table only, never the tabs */
+  /* the result as a score pad on the table */
+  #over .panel { background-color: #f4eedf; color: #2b2214; border-color: #c9b98f; box-shadow: 0 2px 0 #d6c8a4, 0 18px 40px rgba(0,0,0,.6);
+    background-image: linear-gradient(90deg, transparent 22px, rgba(200,80,70,.35) 22px 23px, transparent 23px), repeating-linear-gradient(transparent 0 25px, rgba(70,110,170,.2) 25px 26px); }
+  #over table.turns th { color: #6b5b3e; background: transparent; }
+  #over table.turns td { border-top-color: rgba(60,40,10,.14); }
+  #over table.turns td.n { color: #5c4d33; }
+  #over table.turns tr.win td { color: #9a5b00; }
+  #over .btn.ghost { color: #2b2214; border-color: rgba(60,40,10,.3); }
   .toast { position: fixed; left: 50%; bottom: calc(var(--tabbar) + 14px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #2a3042; padding: 9px 14px; border-radius: 10px; font-size: 13.5px; z-index: 80; animation: up .2s; max-width: calc(100vw - 32px); }
   .fx { position: fixed; z-index: 55; pointer-events: none; transition: transform .45s cubic-bezier(.3,.7,.3,1), opacity .45s; }
   /* Settings > Sound & effects: Animations off stops the table's own motion too; Fast halves it */
-  .fx-still .deal, .fx-still .popin, .fx-still .bitten, .fx-still .msp.can, .fx-still .sp.prey, .fx-still .sheet, .fx-still .sheet-back, .fx-still .toast { animation: none; }
+  .fx-still .deal, .fx-still .flipin, .fx-still .popin, .fx-still .bitten, .fx-still .msp.can, .fx-still .sp.prey, .fx-still .sheet, .fx-still .sheet-back, .fx-still .toast { animation: none; }
   .fx-fast .deal, .fx-fast .popin { animation-duration: .17s; }
   .fx-fast .sheet, .fx-fast .sheet-back, .fx-fast .toast { animation-duration: .11s; }
   #over b[data-tot] { display: inline-block; min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; } /* counting up never widens the column */
@@ -373,22 +502,23 @@
     <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
   </nav>
 
-  <section class="view on" id="v-play"></section>
+  <section class="view on tbl-surface tbl-wood-dark" id="v-play"></section>
   <section class="view" id="v-lab"></section>
   <section class="view" id="v-study"></section>
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/cards.js?v=4"></script>
-<script src="js/engine.js?v=4"></script>
-<script src="js/bots.js?v=4"></script>
-<script src="js/odds.js?v=4"></script>
-<script src="js/lab-data.js?v=4"></script>
-<script src="js/strength-data.js?v=4"></script>
-<script src="js/online-game.js?v=4"></script>
-<script src="js/art.js?v=4"></script>
-<script src="js/fx.js?v=4"></script>
-<script src="js/game-fx.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/cards.js?v=5"></script>
+<script src="js/engine.js?v=5"></script>
+<script src="js/bots.js?v=5"></script>
+<script src="js/odds.js?v=5"></script>
+<script src="js/lab-data.js?v=5"></script>
+<script src="js/strength-data.js?v=5"></script>
+<script src="js/online-game.js?v=5"></script>
+<script src="js/art.js?v=5"></script>
+<script src="js/fx.js?v=5"></script>
+<script src="js/table.js?v=5"></script>
+<script src="js/game-fx.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

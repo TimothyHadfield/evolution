@@ -18,7 +18,8 @@
 
   // ------------------------------------------------------------------ sound & effects (js/fx.js + js/game-fx.js)
   const FXL = window.FX || null, GFX = window.EvoFx || null;
-  const fxEnv = { wait: (ms, fn) => (ms ? setTimeout(fn, ms) : fn()), el: s => document.querySelector(s), all: s => Array.from(document.querySelectorAll(s)) };
+  const TB = window.TABLE || null;
+  const fxEnv = { table: TB, wait: (ms, fn) => (ms ? setTimeout(fn, ms) : fn()), el: s => document.querySelector(s), all: s => Array.from(document.querySelectorAll(s)) };
   function fxClasses() {
     if (!FXL) return;
     const s = FXL.settings;
@@ -239,15 +240,35 @@
   // a trait card face (id = deck id, or -1 for a face-down card)
   function cardFace(id, o) {
     o = o || {};
-    if (id < 0) return '<div class="tc back ' + (o.cls || '') + '"' + (o.attr || '') + '></div>';
+    if (id < 0) return '<div class="tc tbl-card tbl-back evo-back ' + (o.cls || '') + '"' + (o.style ? ' style="' + o.style + '"' : '') + (o.attr || '') + '></div>';
     const c = DECK[id];
-    return '<div class="tc ' + (o.cls || '') + '" style="' + famStyle(c.trait) + (o.delay ? ';animation-delay:' + o.delay + 'ms' : '') + '"' + (o.attr || '') + '>' +
-      '<span class="fd' + (c.food < 0 ? ' neg' : '') + '">' + fmtFood(c.food) + '</span>' + A.icon(c.trait) +
-      '<span class="tn">' + tName(c.trait) + '</span>' + (o.big ? '<span class="tx">' + esc(TEXT[c.trait] || '') + '</span>' : '') + '</div>';
+    return '<div class="tc tbl-card ' + (o.cls || '') + '" style="' + famStyle(c.trait) + (o.delay ? ';animation-delay:' + o.delay + 'ms' : '') + (o.style ? ';' + o.style : '') + '"' + (o.attr || '') + '>' +
+      faceInner(c.trait, c.food, o.big) + '</div>';
+  }
+  // what is printed on a trait card: name across the top, the drawing, the rules text (big cards), the food leaf bottom right
+  function faceInner(t, food, big) {
+    return '<span class="tn">' + tName(t) + '</span><span class="art">' + A.icon(t) + '</span>' + (big ? '<span class="tx">' + esc(TEXT[t] || '') + '</span>' : '') +
+      (food != null ? '<span class="fd' + (food < 0 ? ' neg' : '') + '">' + fmtFood(food) + '</span>' : '');
+  }
+  // turn a face-down card over in 3-D: it turns edge-on, the face is swapped in, it turns back flat.
+  // (no backface trick, so it looks the same in every browser)
+  function turnOver(el, id, delay) {
+    setTimeout(() => {
+      if (!el.isConnected || !el.animate) return;
+      const half = Math.round(190 * (FXL && FXL.settings.animSpeed === 'fast' ? 0.55 : 1));
+      const a = el.animate([{ transform: 'perspective(320px) rotateY(0deg)' }, { transform: 'perspective(320px) rotateY(90deg)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
+      a.onfinish = () => {
+        if (!el.isConnected) return;
+        const t = document.createElement('template');
+        t.innerHTML = cardFace(id, { style: el.style.zIndex ? 'z-index:' + el.style.zIndex : '' });
+        const face = t.content.firstElementChild;
+        el.replaceWith(face);
+        face.animate([{ transform: 'perspective(320px) rotateY(-90deg)' }, { transform: 'none' }], { duration: half, easing: 'ease-out' });
+      };
+    }, delay);
   }
   function bigTrait(t, foodVal) {
-    return '<div class="tc big" style="' + famStyle(t) + '">' + (foodVal != null ? '<span class="fd' + (foodVal < 0 ? ' neg' : '') + '">' + fmtFood(foodVal) + '</span>' : '') +
-      A.icon(t) + '<span class="tn">' + esc(t) + '</span><span class="tx">' + esc(TEXT[t] || '') + '</span></div>';
+    return '<div class="tc tbl-card big" style="' + famStyle(t) + '">' + faceInner(t, foodVal, true) + '</div>';
   }
 
   // ------------------------------------------------------------------ tabs + back button
@@ -407,10 +428,14 @@
     const threat = store.settings.threat ? O.threatMap(v) : [];
     const dangerTo = id => threat.filter(x => x.ok && x.tid === id && x.tp !== x.cp).length;
     const canEat = id => threat.filter(x => x.ok && x.cid === id).length;
+    // species as they were on the last drawn table (to turn just-revealed traits over)
+    const pv = ui.fxTable === table ? ui.fxPrev : null;
+    ui.prevSp = null;
+    if (pv && pv.round === v.round && TB && TB.animOn()) { ui.prevSp = {}; pv.players.forEach(pl => pl.species.forEach(sp => { ui.prevSp[sp.id] = sp; })); }
 
     // --- status
     const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') : '';
-    const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span><span class="pill" title="Draw pile">Deck ' + v.deckSize + '</span>' +
+    const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span>' +
       '<span class="ph grow' + (myTurn && !v.over ? ' me' : '') + '">' + phaseTxt + '</span>' +
       (store.settings.hints && !v.over && myTurn && isLocal() ? '<button class="icon-btn" data-go="hint" aria-label="Hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '') +
       '<button class="icon-btn" id="btn-sheet-log" data-go="log" aria-label="Log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>' +
@@ -421,9 +446,9 @@
       if (p === ME) return '';
       const turn = v.phase === 'feed' && v.turn === p;
       const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : '';
-      return '<div class="opp' + (turn ? ' turn' : '') + '" data-p="' + p + '"><div class="oh"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span>' +
-        (v.first === p ? '<span class="pill small" title="Feeds first">1st</span>' : '') +
-        '<span class="grow"></span><span class="st">' + (st ? st + ' · ' : '') + 'hand ' + pl.handSize + (pl.bag != null ? ' · bag ' + pl.bag : '') + '</span></div>' +
+      return '<div class="opp' + (turn ? ' turn' : '') + '" data-p="' + p + '"><div class="oh"><span class="plate"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span></span>' +
+        (v.first === p ? '<span class="fp" title="Feeds first">1st</span>' : '') +
+        '<span class="st">' + st + '</span><span class="grow"></span>' + backsHtml(pl.handSize) + (pl.bag != null ? bagHtml(pl.bag, 'Food bag') : '') + '</div>' +
         '<div class="ospc">' + (pl.species.length ? pl.species.map(sp => miniSp(sp, p, v)).join('') : '<span class="muted small">no species</span>') + '</div></div>';
     }).join('');
 
@@ -439,9 +464,21 @@
     }
     const cur = v.hist && v.hist[v.hist.length - 1];
     const placed = v.players.map((pl, p) => (pl.foodPicked ? (v.phase === 'feed' && cur && cur.foodCards ? null : -1) : null));
-    const fcards = v.phase === 'feed' && cur && cur.foodCards ? cur.foodCards.map(id => cardFace(id)).join('') : placed.filter(x => x === -1).map(() => cardFace(-1)).join('');
-    const hole = '<div class="hole" data-go-hole="1"><span>' + A.pond(v.hole) + '</span><div><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div>' +
-      '<div class="fcards">' + fcards + '</div><span class="grow"></span>' + oddsTxt + '</div>';
+    // the food cards lie on the watering hole face down; at the reveal they turn over (3-D) one by one
+    const prevV = ui.fxTable === table ? ui.fxPrev : null;
+    // the food cards turn over one by one when feeding starts; a computer's move that redraws the
+    // table mid-reveal keeps the cards that have not turned yet face down, still waiting their turn
+    if (v.phase === 'feed' && cur && cur.foodCards && cur.foodCards.length && prevV && prevV.round === v.round && prevV.phase !== 'feed' && TB && TB.animOn())
+      ui.reveal = { round: v.round, t0: performance.now() };
+    const revAt = k => 160 + k * 150;
+    const revEl = ui.reveal && v.phase === 'feed' && ui.reveal.round === v.round ? performance.now() - ui.reveal.t0 : Infinity;
+    const revealing = revEl < Infinity && cur && cur.foodCards && cur.foodCards.some((id, k) => revEl < revAt(k));
+    const fcards = v.phase === 'feed' && cur && cur.foodCards ? cur.foodCards.map((id, k) => { const down = revEl < revAt(k);
+      return cardFace(down ? -1 : id, { style: 'z-index:' + (20 - k), attr: down ? ' data-reveal="' + id + '" data-at="' + Math.round(revAt(k) - revEl) + '"' : '' }); }).join('') : placed.filter(x => x === -1).map((x, k) => cardFace(-1, { style: 'z-index:' + (20 - k) })).join('');
+    const hole = '<div class="hole"><div class="deckw"><div id="deck" title="Draw pile" aria-label="Draw pile: ' + v.deckSize + ' cards"></div></div>' +
+      '<div class="wh" data-go-hole="1"><div class="pondw">' + A.pond(v.hole) + '<div class="ptoks">' + pondTokens(v.hole) + '</div><div class="hnw"><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div></div>' +
+      '<div class="fcards">' + fcards + '</div>' + oddsTxt + '</div>' +
+      '<div class="discw"><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div></div>';
 
     // --- my species
     const mySp = dv.species;
@@ -449,12 +486,14 @@
     const feedMine = v.phase === 'feed' && myTurn;
     const fo = feedMine ? (table.online ? E.feedOptions(rebuildFor(v), ME) : E.feedOptions(table.game.state, ME)) : [];
     const mine = (selCard ? '<button class="newsp can" data-new="L" aria-label="New species on the left">+</button>' : '') +
-      mySp.map((sp, i) => bigSp(sp, i, v, { can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), prey: feedMine && ui.feedSel != null && fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === sp.id), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id) })).join('') +
+      mySp.map((sp, i) => bigSp(sp, i, v, { can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), prey: feedMine && ui.feedSel != null && fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === sp.id), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id), flip: flipped(sp) })).join('') +
       (selCard ? '<button class="newsp can" data-new="R" aria-label="New species on the right">+</button>' : '') +
-      (!mySp.length && !selCard ? '<span class="muted small" style="margin:auto">No species. Play a card as a new species.</span>' : '');
+      (!mySp.length && !selCard ? '<span class="muted small" style="margin:auto">No species. Play a card as a new species.</span>' : '') +
+      '<div class="side-bits">' + (v.first === ME ? '<span class="fp" title="You feed first">1st</span>' : '') + (v.me && v.me.bag != null ? bagHtml(v.me.bag, 'Your food bag') : '') + '</div>';
 
     // --- hand
-    const hand = dv.hand.map((id, k) => cardFace(id, { cls: (ui.sel === id || (ui.needCard && ui.needCard.cards && ui.needCard.cards.indexOf(id) >= 0) ? 'sel ' : ''), attr: ' data-card="' + id + '"' })).join('');
+    const handCards = dv.hand.map((id, k) => cardFace(id, { style: '--z:' + (dv.hand.length - k), cls: (ui.sel === id || (ui.needCard && ui.needCard.cards && ui.needCard.cards.indexOf(id) >= 0) ? 'sel is-up ' : ''), attr: ' data-card="' + id + '"' }));
+    const hand = TB ? '' : handCards.join('');
 
     // --- actions
     const acts = actionBar(v, myTurn, fo, dv);
@@ -465,8 +504,47 @@
 
     vPlay.innerHTML = '<div id="game"' + (v.players.length >= 4 ? ' class="crowd"' : '') + '>' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
+    layTable(v, handCards, revealing);
     afterRender(v);
     fxStep(v);
+  }
+  // the physical bits: deck thickness, the messy discard pile, the held fan, flips at the reveal
+  function layTable(v, handCards, revealing) {
+    if (!TB) return;
+    TB.deck($('#deck'), v.deckSize, { cls: 'evo-back', perCard: 0.08, max: 9 });
+    TB.pile($('#discard'), discardCards(v), { seed: 'evo-discard', max: 4, rot: 13, off: 3 });
+    if (ui.fan && ui.fan.disconnect) ui.fan.disconnect();
+    ui.fan = TB.fan($('#hand'), handCards, { pick: false, spread: 0.8, lift: 14, maxRot: 8, minHeight: 60 });
+    if (revealing) document.querySelectorAll('.hole .fcards [data-reveal]').forEach(el => turnOver(el, +el.dataset.reveal, +el.dataset.at));
+  }
+  // the newest discards we know (food cards of earlier rounds), face up
+  function discardCards(v) {
+    if (!v.discardSize) return [];
+    const cur = v.hist && v.hist[v.hist.length - 1];
+    const ids = [];
+    (v.hist || []).forEach(h => { if (v.phase === 'feed' && h === cur) return; (h.foodCards || []).forEach(id => ids.push(id)); });
+    return ids.slice(-4).map(id => cardFace(id));
+  }
+  // plant food tokens heaped in the pond (up to 14 drawn; the number says the rest)
+  function pondTokens(n) {
+    let out = '';
+    for (let i = 0; i < Math.min(n, 22); i++) {
+      const a = i * 2.39996, r = Math.sqrt(i + 0.5) / Math.sqrt(22.5);
+      out += '<i class="ftk" style="left:' + (50 + Math.cos(a) * r * 36).toFixed(1) + '%;top:' + (52 + Math.sin(a) * r * 30).toFixed(1) + '%"></i>';
+    }
+    return out;
+  }
+  // a player's hand seen from across the table: a small fan of card backs and the count
+  function backsHtml(n) {
+    const k = Math.min(n, 5);
+    let out = '';
+    for (let i = 0; i < k; i++) out += '<i style="--r:' + (k > 1 ? (-14 + 28 * i / (k - 1)) : 0).toFixed(0) + 'deg"></i>';
+    return '<span class="ohand" title="Cards in hand" aria-label="' + n + ' cards in hand">' + out + '<b>' + n + '</b></span>';
+  }
+  // the cloth food bag (1 point per food inside)
+  function bagHtml(n, label) {
+    return '<span class="bag" title="' + label + '" aria-label="' + label + ': ' + n + '"><svg viewBox="0 0 20 22" aria-hidden="true"><path d="M6.5 5.2C5.6 3 7 1.6 10 1.6s4.4 1.4 3.5 3.6c4 2 6 6 6 9.4 0 4.6-4.3 6-9.5 6S.5 19.2.5 14.6c0-3.4 2-7.4 6-9.4z" fill="#b48d58" stroke="#5a4220" stroke-width="1"/>' +
+      '<path d="M6.3 5.6c2.4.9 5 .9 7.4 0" stroke="#5a4220" stroke-width="1.3" fill="none"/><path d="M4 12c1-2 2-3 3-3.6M15 11c-.5-1.5-1.3-2.4-2.2-3" stroke="rgba(255,240,210,.35)" stroke-width="1" fill="none"/></svg><b>' + n + '</b></span>';
   }
   // what changed since the last drawn table -> sounds + animations (computers and online players too)
   function fxStep(v) {
@@ -517,33 +595,47 @@
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
     const fatT = sp.traits.some(id => T(id) === 'Fat Tissue');
     let slots = '';
-    for (let k = 0; k < sp.pop; k++) slots += k < sp.food ? A.food(carn ? 'meat' : 'plant', 14) : '<span class="slot"></span>';
-    if (fatT) for (let k = 0; k < sp.body; k++) slots += k < sp.fat ? A.food('fat', 14) : '<span class="slot fatslot"></span>';
+    for (let k = 0; k < sp.pop; k++) slots += k < sp.food ? '<i class="ftk' + (carn ? ' meat' : '') + '"></i>' : '<span class="slot"></span>';
+    if (fatT) for (let k = 0; k < sp.body; k++) slots += k < sp.fat ? '<i class="ftk fat"></i>' : '<span class="slot fatslot"></span>';
     const nTr = sp.traits.length + sp.hidden.length;
-    const trs = sp.traits.map(id => traitChip(id)).concat(sp.hidden.map(id => traitChip(id, true))).join('') +
+    const trs = sp.traits.map(id => traitChip(id, false, o.flip)).concat(sp.hidden.map(id => traitChip(id, true))).join('') +
       '<div class="tr empty"></div>'.repeat(Math.max(0, Math.min(3, v.maxTraits || 3) - nTr)); // open trait slots
     const cls = ['sp', carn ? 'carnivore' : '', o.can ? 'can' : '', o.prey && !o.tgt ? 'prey' : '', o.sel ? 'sel' : '', o.tgt ? 'sel tgt' : '', sp.food >= sp.pop && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
     return '<div class="' + cls + '" data-sp="' + sp.id + '">' +
       (o.danger && store.settings.threat ? '<span class="flag danger" title="Carnivores that can eat it">' + o.danger + '</span>' : '') +
       (o.eats && store.settings.threat ? '<span class="flag carn" title="Species it can eat">' + o.eats + '</span>' : '') +
-      '<div class="fr">' + slots + '</div><div class="dials">' + A.dial('body', sp.body).replace('</b>', '</b>Body') + A.dial('pop', sp.pop).replace('</b>', '</b>Pop') + '</div>' +
-      '<div class="trs">' + trs + '</div></div>';
+      '<div class="trs">' + trs + '</div><div class="board"><div class="fr">' + slots + '</div>' + track('Body', 'b', sp.body) + track('Pop', 'p', sp.pop) + '</div></div>';
   }
-  function traitChip(id, fresh) {
+  // traits of this species that were face down on the last drawn table and are face up now
+  function flipped(sp) {
+    const a = ui.prevSp && ui.prevSp[sp.id];
+    if (!a || !a.hidden.length) return [];
+    return sp.traits.filter(id => a.traits.indexOf(id) < 0);
+  }
+  // a 1-6 track printed on the board with a wooden cube on the current space
+  function track(label, k, n) {
+    let cells = '';
+    for (let i = 1; i <= 6; i++) cells += i === n ? '<i class="on"><b class="cube ' + k + '">' + i + '</b></i>' : '<i>' + i + '</i>';
+    return '<div class="trk" aria-label="' + label + ' ' + n + '"><span class="tl">' + label + '</span>' + cells + '</div>';
+  }
+  // a trait card tucked above a board (only its top shows); flip = it just turned face up
+  function traitChip(id, fresh, flip) {
     if (id < 0) return '<div class="tr hid"><span>face down</span></div>';
     const t = T(id);
-    return '<div class="tr' + (fresh ? ' new' : '') + '" style="' + famStyle(t) + '">' + A.icon(t) + '<span>' + tName(t) + '</span></div>';
+    const k = flip ? flip.indexOf(id) : -1;
+    return '<div class="tr' + (fresh ? ' new' : '') + (k >= 0 ? ' flipin' : '') + '" style="' + famStyle(t) + (k >= 0 ? ';animation-delay:' + (200 + k * 120) + 'ms' : '') + '">' + A.icon(t) + '<span>' + tName(t) + '</span></div>';
   }
   function miniSp(sp, p, v) {
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
     const fatT = sp.traits.some(id => T(id) === 'Fat Tissue');
     let dots = '';
-    for (let k = 0; k < sp.pop; k++) dots += '<i class="' + (k < sp.food ? 'on' : '') + '"' + (carn && k < sp.food ? ' style="background:var(--meat);border-color:var(--meat)"' : '') + '></i>';
+    for (let k = 0; k < sp.pop; k++) dots += '<i class="' + (k < sp.food ? 'on' + (carn ? ' meat' : '') : '') + '"></i>';
     if (fatT) for (let k = 0; k < sp.fat; k++) dots += '<i class="fat"></i>';
-    const ics = sp.traits.map(id => '<span class="ic" style="' + famStyle(T(id)) + '">' + A.icon(T(id)) + '</span>').join('') + sp.hidden.map(() => '<span class="hidden"></span>').join('');
+    const flip = flipped(sp);
+    const ics = sp.traits.map(id => '<span class="ic' + (flip.indexOf(id) >= 0 ? ' flipin' : '') + '" style="' + famStyle(T(id)) + '" title="' + esc(T(id)) + '">' + A.icon(T(id)) + '</span>').join('') + sp.hidden.map(() => '<span class="hidden" title="Face down"></span>').join('');
     const can = ui.feedSel != null && v.phase === 'feed' && v.turn === ME && isTarget(sp.id);
-    return '<div class="msp' + (carn ? ' carnivore' : '') + (can ? ' can' : '') + (ui.target === sp.id ? ' tgt' : '') + '" data-sp="' + sp.id + '" data-owner="' + p + '"><div class="bp"><span class="b">' + sp.body + '</span><span class="muted">/</span><span class="p">' + sp.pop + '</span></div>' +
-      '<div class="fdots">' + dots + '</div><div class="ics">' + ics + '</div></div>';
+    return '<div class="msp' + (carn ? ' carnivore' : '') + (can ? ' can' : '') + (ui.target === sp.id ? ' tgt' : '') + '" data-sp="' + sp.id + '" data-owner="' + p + '"><div class="ics">' + ics + '</div>' +
+      '<div class="mb"><div class="bp" aria-label="Body ' + sp.body + ', population ' + sp.pop + '"><b class="cube b">' + sp.body + '</b><b class="cube p">' + sp.pop + '</b></div><div class="fdots">' + dots + '</div></div></div>';
   }
   function isTarget(id) {
     const v = curView();

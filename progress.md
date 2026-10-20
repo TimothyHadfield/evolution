@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-20 (sound & effects).
+Last updated: 2026-10-20 (real-table look).
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -26,6 +26,7 @@ Live: https://timothyhadfield.github.io/evolution/
 | QA pass (fresh agent, 2026-10-20) | 6 findings, all fixed except: deck emptying exactly at 0 during a deal doesn't end the game that round (rule reading: there were enough cards) |
 | Sound & effects (2026-10-20) | Done. `js/fx.js` (shared `_fx` copy, never edit) + `js/game-fx.js` (event map). Settings > "Sound & effects". 8 tests in `tests/fx.test.js`, 3 mutations seen failing |
 | Design pass (2026-10-20) | Done. 4–6 players on phone: opponents in two compact columns, no scrolling (measured 175/175 px at 393 px). Opponent trait icons on family colours, gold phase title on your turn, red glowing prey while attacking, open trait slots, soft-hyphen trait names, bigger desktop board. Screens: scratchpad `design/evolution/before` + `after` |
+| Real-table look (2026-10-20) | Done. Dark wood table seen from my seat: opponents' seats across the top (name plate, fan of card backs, food bag, mini species boards), the Watering Hole board in the middle with the draw deck (thickness shrinks) on the left and a messy discard pile on the right, my species boards in front of me (Body/Population tracks 1–6 with brown/green cubes, food tokens on the board, trait cards tucked above), my hand held as a fan. Cards at 63:88 with our own art and back. Deal = ghost backs fly from the deck; food cards turn over one by one at the reveal. Shared kit `css/table.css` + `js/table.js` (copies of `_table`, never edit). Phone sideways: hand moves to the right edge. Checked 320, 393, 659×393, 1280 |
 
 ## Authorized next steps
 - (none beyond the brief)
@@ -35,12 +36,13 @@ Live: https://timothyhadfield.github.io/evolution/
 - "Really work on the webdesign… art, fitting it with an iphone and computer… make sure that everything works properlly without errors"
 - "Make sure to get everything right like rules and artwork and specific numbers of cards, routes, details, etc."
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
+- "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life, so it's easy to understand if you've already played it before, and also so it feels more like you're actually playing in real life rather than you're playing it online. Even things like how youre cards or other things are laid out infront of you, make it look like they are actual cards laid out similar to how it looks like in real life. Make the decks look like actual decks. Make the board have the same design as it does in real life with the same layouts. It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 
 ## Sound map (event → sound, animation)
 Driven by `EvoFx.diff(prevView, nextView, me)` on every table render, so computers and online players sound the same as on this device (theirs at 0.8 volume, never louder). My own card plays sound when I tap (they are planned locally), not again on Done.
 | Event | Sound | Animation |
 |---|---|---|
-| New game | `shuffle`, then `cardDeal` per card | cards fly from the Deck pill into the hand |
+| New game | `shuffle`, then `cardDeal` per card | card backs fly from the deck stack into the hand |
 | Deal at a round start / cards drawn for an extinct species | `cardDeal` per new card (max 7) | same fly-in |
 | Food card placed at the watering hole (me on tap, others on change) | `cardSlide` | my card glides to the hole; face-down pile pops |
 | Trait card played onto a species (tuck) | `tuck` (defined here) | card glides to the species, species pops |
@@ -72,7 +74,11 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - fx.js before 1.0.1 moved confetti per frame, so it crawled in headless WebKit; 1.0.3 (copied here) is time-based. Keep the copy current.
 - Local port 8473 is often taken by other game sites. Use another port for local serving.
 - A local test server must send `charset=utf-8`, or the log shows "Youâ€™s" (GitHub Pages already does).
-- Phone layout: the opps row is `minmax(0, max-content)` and the hand row takes the free space. With 4+ players, `.opps.many` (two columns) and `#game.crowd` turn on. If opponent minis grow, re-measure at 393 px with 6 players.
+- Phone layout: the opps row is `minmax(0, max-content)` and the hand row takes the free space. With 4+ players, `.opps.many` (two columns) and `#game.crowd` turn on. If opponent minis grow, re-measure at 393 px with 6 players. My boards' row is `max-content` (never squeezed); the opps row gives way and scrolls instead.
+- `css/table.css`, `js/table.js` and `js/fx.js` are byte copies of `_table` / `_fx` (`.gitattributes` marks them `-text`). Re-copy, never edit; check with `cmp`.
+- The kit's `.tbl-flip` 3-D card shows the BACK when face up in WebKit (Chrome is fine). So food cards don't use it: `turnOver()` in app.js turns the card edge-on, swaps the face in, turns it back. `ui.reveal` keeps unturned cards face down if a computer's move redraws mid-reveal.
+- The hand fan stacks each card ON the one to its right (`--z` + `!important` over the kit's z-index) so every food leaf (bottom right) stays visible.
+- Deal animations start at `#deck` (game-fx.js `from`); the hand cards are hidden until their ghost lands (4 s safety unhide).
 
 ## Decisions
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
@@ -91,6 +97,8 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Confetti and animations on a real iPhone (checked in WebKit at 393 px only).
 - Sounds in a real two-phone online game (same diff code as local, reasoned).
 - Page with storage blocked (fx.js and the app both wrap storage in try/catch; reasoned, not run).
+- Real-table look on a real iPhone (WebKit at 393/320/landscape only). The setup form scrolls in phone landscape (it did before too).
+- At 320 px with 6 players, the opponents' area scrolls (two rows of seats show).
 
 ## Rejected / parked
 - ~~Flight, Climate, Oceans~~: no public card lists to cross-check.
