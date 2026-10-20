@@ -217,6 +217,9 @@
     document.body.appendChild(back);
   }
   function closeSheet() { const s = $('#sheet'); if (s) s.remove(); }
+  // soft hyphens so long one-word trait names break cleanly on small cards instead of being cut off
+  const SOFT = { Intelligence: 'Intelli­gence', Cooperation: 'Cooper­ation', Burrowing: 'Burrow­ing', Carnivore: 'Carni­vore', Scavenger: 'Scav­enger', Symbiosis: 'Sym­biosis' };
+  const tName = t => esc(SOFT[t] || t);
   function famStyle(t) { const f = A.FAMILY[t] || 'feed'; return '--paper:' + A.PAPER[f] + ';--ink:' + A.INK[f]; }
 
   // a trait card face (id = deck id, or -1 for a face-down card)
@@ -226,7 +229,7 @@
     const c = DECK[id];
     return '<div class="tc ' + (o.cls || '') + '" style="' + famStyle(c.trait) + (o.delay ? ';animation-delay:' + o.delay + 'ms' : '') + '"' + (o.attr || '') + '>' +
       '<span class="fd' + (c.food < 0 ? ' neg' : '') + '">' + fmtFood(c.food) + '</span>' + A.icon(c.trait) +
-      '<span class="tn">' + esc(c.trait) + '</span>' + (o.big ? '<span class="tx">' + esc(TEXT[c.trait] || '') + '</span>' : '') + '</div>';
+      '<span class="tn">' + tName(c.trait) + '</span>' + (o.big ? '<span class="tx">' + esc(TEXT[c.trait] || '') + '</span>' : '') + '</div>';
   }
   function bigTrait(t, foodVal) {
     return '<div class="tc big" style="' + famStyle(t) + '">' + (foodVal != null ? '<span class="fd' + (foodVal < 0 ? ' neg' : '') + '">' + fmtFood(foodVal) + '</span>' : '') +
@@ -394,7 +397,7 @@
     // --- status
     const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') : '';
     const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span><span class="pill" title="Draw pile">Deck ' + v.deckSize + '</span>' +
-      '<span class="ph grow">' + phaseTxt + '</span>' +
+      '<span class="ph grow' + (myTurn && !v.over ? ' me' : '') + '">' + phaseTxt + '</span>' +
       (store.settings.hints && !v.over && myTurn && isLocal() ? '<button class="icon-btn" data-go="hint" aria-label="Hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '') +
       '<button class="icon-btn" id="btn-sheet-log" data-go="log" aria-label="Log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>' +
       '<button class="icon-btn" data-go="menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></div>';
@@ -432,7 +435,7 @@
     const feedMine = v.phase === 'feed' && myTurn;
     const fo = feedMine ? (table.online ? E.feedOptions(rebuildFor(v), ME) : E.feedOptions(table.game.state, ME)) : [];
     const mine = (selCard ? '<button class="newsp can" data-new="L" aria-label="New species on the left">+</button>' : '') +
-      mySp.map((sp, i) => bigSp(sp, i, v, { can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id) })).join('') +
+      mySp.map((sp, i) => bigSp(sp, i, v, { can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), prey: feedMine && ui.feedSel != null && fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === sp.id), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id) })).join('') +
       (selCard ? '<button class="newsp can" data-new="R" aria-label="New species on the right">+</button>' : '') +
       (!mySp.length && !selCard ? '<span class="muted small" style="margin:auto">No species. Play a card as a new species.</span>' : '');
 
@@ -446,7 +449,7 @@
     const side = '<div id="g-side"><div class="panel threatbox"><div class="row"><span class="label grow">Who can eat whom</span>' + qBtn('Each line is a carnivore that can attack right now, as the table looks. Face-down traits are not counted until they are revealed.') + '</div><div class="scroll" style="margin-top:6px">' + threatTable(v, threat) + '</div></div>' +
       '<div class="panel logbox"><span class="label">Log</span><div class="scroll" style="margin-top:6px">' + logHtml(v) + '</div></div></div>';
 
-    vPlay.innerHTML = '<div id="game">' + status + '<div class="opps">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
+    vPlay.innerHTML = '<div id="game"' + (v.players.length >= 4 ? ' class="crowd"' : '') + '>' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
     afterRender(v);
   }
@@ -492,8 +495,10 @@
     let slots = '';
     for (let k = 0; k < sp.pop; k++) slots += k < sp.food ? A.food(carn ? 'meat' : 'plant', 14) : '<span class="slot"></span>';
     if (fatT) for (let k = 0; k < sp.body; k++) slots += k < sp.fat ? A.food('fat', 14) : '<span class="slot fatslot"></span>';
-    const trs = sp.traits.map(id => traitChip(id)).concat(sp.hidden.map(id => traitChip(id, true))).join('');
-    const cls = ['sp', carn ? 'carnivore' : '', o.can ? 'can' : '', o.sel ? 'sel' : '', o.tgt ? 'sel' : '', sp.food >= sp.pop && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
+    const nTr = sp.traits.length + sp.hidden.length;
+    const trs = sp.traits.map(id => traitChip(id)).concat(sp.hidden.map(id => traitChip(id, true))).join('') +
+      '<div class="tr empty"></div>'.repeat(Math.max(0, Math.min(3, v.maxTraits || 3) - nTr)); // open trait slots
+    const cls = ['sp', carn ? 'carnivore' : '', o.can ? 'can' : '', o.prey && !o.tgt ? 'prey' : '', o.sel ? 'sel' : '', o.tgt ? 'sel tgt' : '', sp.food >= sp.pop && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
     return '<div class="' + cls + '" data-sp="' + sp.id + '">' +
       (o.danger && store.settings.threat ? '<span class="flag danger" title="Carnivores that can eat it">' + o.danger + '</span>' : '') +
       (o.eats && store.settings.threat ? '<span class="flag carn" title="Species it can eat">' + o.eats + '</span>' : '') +
@@ -503,7 +508,7 @@
   function traitChip(id, fresh) {
     if (id < 0) return '<div class="tr hid"><span>face down</span></div>';
     const t = T(id);
-    return '<div class="tr' + (fresh ? ' new' : '') + '" style="' + famStyle(t) + '">' + A.icon(t) + '<span>' + esc(t) + '</span></div>';
+    return '<div class="tr' + (fresh ? ' new' : '') + '" style="' + famStyle(t) + '">' + A.icon(t) + '<span>' + tName(t) + '</span></div>';
   }
   function miniSp(sp, p, v) {
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
@@ -511,7 +516,7 @@
     let dots = '';
     for (let k = 0; k < sp.pop; k++) dots += '<i class="' + (k < sp.food ? 'on' : '') + '"' + (carn && k < sp.food ? ' style="background:var(--meat);border-color:var(--meat)"' : '') + '></i>';
     if (fatT) for (let k = 0; k < sp.fat; k++) dots += '<i class="fat"></i>';
-    const ics = sp.traits.map(id => A.icon(T(id))).join('') + sp.hidden.map(() => '<span class="hidden"></span>').join('');
+    const ics = sp.traits.map(id => '<span class="ic" style="' + famStyle(T(id)) + '">' + A.icon(T(id)) + '</span>').join('') + sp.hidden.map(() => '<span class="hidden"></span>').join('');
     const can = ui.feedSel != null && v.phase === 'feed' && v.turn === ME && isTarget(sp.id);
     return '<div class="msp' + (carn ? ' carnivore' : '') + (can ? ' can' : '') + (ui.target === sp.id ? ' tgt' : '') + '" data-sp="' + sp.id + '" data-owner="' + p + '"><div class="bp"><span class="b">' + sp.body + '</span><span class="muted">/</span><span class="p">' + sp.pop + '</span></div>' +
       '<div class="fdots">' + dots + '</div><div class="ics">' + ics + '</div></div>';
@@ -523,7 +528,7 @@
   }
 
   function actionBar(v, myTurn, fo, dv) {
-    if (v.over) return '<button class="btn primary" data-go="new">New game</button><button class="btn" data-go="study">Study</button>';
+    if (v.over) return '<button class="btn" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button>';
     if (table.online && net.busy) return '<span class="msg">Sending…</span>';
     if (!myTurn) {
       const who = v.toAct.filter(p => p !== ME).map(p => v.players[p].name);
@@ -596,7 +601,7 @@
     return '<div class="confirm-back" id="over"><div class="panel" style="max-width:420px"><div class="row"><b class="grow" style="font-size:18px">' +
       (r.winners.indexOf(ME) >= 0 ? (r.winners.length > 1 ? 'Shared win!' : 'You win!') : esc(v.players[r.winners[0]].name) + ' wins') + '</b></div>' +
       '<table class="turns" style="margin:10px 0"><tr><th>Player</th><th>Food</th><th>Pop</th><th>Traits</th><th>Total</th></tr>' +
-      rows.map(x => '<tr><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b>' + x.sc.total + '</b></td></tr>').join('') +
+      rows.map(x => '<tr' + (r.winners.indexOf(x.p) >= 0 ? ' class="win"' : '') + '><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b>' + x.sc.total + '</b></td></tr>').join('') +
       '</table><div class="row" style="justify-content:flex-end"><button class="btn ghost" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button></div></div></div>';
   }
 
