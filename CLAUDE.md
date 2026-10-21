@@ -18,7 +18,7 @@ A study and play site for the board game **Evolution** (North Star Games, 2nd ed
 - **Generated data:**
   - `node tools/build-lab.js 600` writes `js/lab-data.js`.
   - `node tools/measure-levels.js 400` writes `js/strength-data.js`.
-- **Tests:** `node tests/engine.test.js && node tests/online.test.mjs && node tests/fx.test.js && node tests/edge.test.js`.
+- **Tests:** `node tests/engine.test.js && node tests/online.test.mjs && node tests/fx.test.js && node tests/edge.test.js && node tests/layout.test.mjs`.
 - **Sound & effects:** `js/fx.js` is a copy of `Board and Card Games/_fx/fx.js` (never edit; re-copy). `js/game-fx.js` maps table changes to sounds.
 - **Cache:** bump `?v=` on the script tags in `index.html` with each deploy.
 

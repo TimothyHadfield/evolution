@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-20 (edge pass, live at 0c96243).
+Last updated: 2026-10-20 (visibility pass merged; see Status for the live commit).
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -28,6 +28,7 @@ Live: https://timothyhadfield.github.io/evolution/
 | Design pass (2026-10-20) | Done. 4–6 players on phone: opponents in two compact columns, no scrolling (measured 175/175 px at 393 px). Opponent trait icons on family colours, gold phase title on your turn, red glowing prey while attacking, open trait slots, soft-hyphen trait names, bigger desktop board. Screens: scratchpad `design/evolution/before` + `after` |
 | Real-table look (2026-10-20) | Done. Dark wood table seen from my seat: opponents' seats across the top (name plate, fan of card backs, food bag, mini species boards), the Watering Hole board in the middle with the draw deck (thickness shrinks) on the left and a messy discard pile on the right, my species boards in front of me (Body/Population tracks 1–6 with brown/green cubes, food tokens on the board, trait cards tucked above), my hand held as a fan. Cards at 63:88 with our own art and back. Deal = ghost backs fly from the deck; food cards turn over one by one at the reveal. Shared kit `css/table.css` + `js/table.js` (copies of `_table`, never edit). Phone sideways: hand moves to the right edge. Checked 320, 393, 659×393, 1280 |
 | Edge pass (2026-10-20) | Done, live at 0c96243. 54 weird scenarios, ~60 checks, 13 failed, all fixed but one (see below). 4 tests in `tests/edge.test.js` |
+| Visibility pass (2026-10-20) | Done, merged at 98f8351. Opponents, my boards and hand grow (CSS `zoom`) into empty wood, never cutting a name or species; hand no longer slides in from the left after each tap; laptop food cards no longer hide names; bigger phone food numbers. 393 px 4 players: opp cubes 14→17 px; 2 players 16→26; 1440 laptop 24→38. 6 players on phone unchanged (packed; tap a species for the big sheet). 10 tests in `tests/layout.test.mjs` (WebKit + Chrome). Shots: scratchpad `vis/evolution/before` + `after` |
 
 ## Edge pass: weird scenarios (2026-10-20)
 Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mjs, behave.mjs). Re-run on live: layout 32/35 ok, behave 41/41 PASS.
@@ -60,6 +61,7 @@ Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mj
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life, so it's easy to understand if you've already played it before, and also so it feels more like you're actually playing in real life rather than you're playing it online. Even things like how youre cards or other things are laid out infront of you, make it look like they are actual cards laid out similar to how it looks like in real life. Make the decks look like actual decks. Make the board have the same design as it does in real life with the same layouts. It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 - "I've noticed the games often have good user interfaces but could be improved especially when a scenario happens that the game might've not really thought about or whatnot. Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (2026-10-20)
+- "for a lot of the games the cards or board layout is too small to easily see what's going on. Some games just need small design imporvements like filling the screen with the board view and fitting the cards and other things in the empty space, some have severe errors like TTR. Fix this so the view of what's happening and where everything is is very clear. Consider parts of the board that are dense in what's happening and if the user can reasonably see it." (2026-10-20)
 
 ## Sound map (event → sound, animation)
 Driven by `EvoFx.diff(prevView, nextView, me)` on every table render, so computers and online players sound the same as on this device (theirs at 0.8 volume, never louder). My own card plays sound when I tap (they are planned locally), not again on Done.
@@ -87,6 +89,8 @@ Driven by `EvoFx.diff(prevView, nextView, me)` on every table render, so compute
 One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound never lags the table.
 
 ## Traps
+- Table size = `zoomTable` in `js/app.js`: CSS `zoom` on `.opps`/`.mine`/`.hand`, searched only when the screen or species counts change (`ui.zoom.key`), each try ~10 ms in WebKit. It refuses any size that cuts a name not cut at zoom 1 (`cut0`). New layout CSS must keep `tests/layout.test.mjs` green (needs Playwright in `~/.claude/tools/node_modules`, else it skips).
+- `layTable` adds `.settle` to the hand around `TB.fan` so cards don't transition from x=0 on redraw. Don't remove it.
 - `bank_Evolution.html` in the parent folder is a different project. Don't touch it.
 - The online layer is a copy. Re-copy `_online/online.js` when `_online` changes. Never edit it here.
 - In the online public view, `canPass` is always false (the view is for seat −1). The screen works it out from `feedOptions` itself.
@@ -119,6 +123,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 
 ## NOT verified
 - On Tim's real iPhone (only checked in WebKit at 393 px).
+- Visibility pass: zoom search time on an old/slow iPhone (laptop WebKit: median ~23 ms per redraw, worst ~330 ms on a new species count).
 - A full online game between two real phones.
 - Whether food numbers changed in printings after 2017.
 - How the sounds actually sound (headless browsers have no audio): only checked by node tests with a fake AudioContext.

@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-10-20: visibility pass (builder agent)
+- **Asked** (Tim, through the manager): cards/board too small to see; fill the screen with the board, make dense parts readable.
+- **Built:** `zoomTable` grows opponents, my boards and hand into empty wood (never cutting names/species); hand stays put on tap (`.settle`); desktop opponent rows wrap; laptop food cards overlap less; bigger phone food numbers; extra tap room on prey.
+- **Verified:** engine 33, online 7, fx 8, edge 4, layout 10 (WebKit + Chrome); layout tests seen failing on the old build and on live before merge. Taps on prey hit in WebKit + Chrome at 393, 320, 659×393, 1280. One read-only reviewer; its two regressions (cut name, clipped species) fixed.
+- **Open:** 6 players on phone still small (packed); real iPhone.
+
 ## 2026-10-20: edge pass (builder agent)
 - **Asked** (Tim, through the manager): make each game perfect in scenarios it doesn't expect or that are a little weird. Plus: 6 players at 320 px scrolled; setup scrolled in phone landscape.
 - **Built:** engine ends the game when deck and discard are both empty; `.tight` fit tier; landscape table grid and two-column setup; Back closes sheets; planned plays survive reload; two-tab sync; computers pause in a hidden tab; shared-win heading; real-size discard pile; wide scrolling hand; empty-hand "Go on"; emoji-safe names; plain offline message. Kit re-copied (cmp equal).
