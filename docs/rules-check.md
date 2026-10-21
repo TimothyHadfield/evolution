@@ -80,7 +80,7 @@ Status: every number below is asserted by `tests/engine.test.js`.
   - Food goes behind the screen.
   - Species at 0 go extinct.
   - The first-player marker passes left.
-- **Game end** [R]: the deck runs out while dealing → this round is the last. If it runs out from extinction draws → the next round is the last.
+- **Game end** [R]: the deck runs out while dealing → this round is the last. If it runs out from extinction draws → the next round is the last. If the deck AND the discard pile are both empty when a card is needed, that counts as the deck running out (test `tests/edge.test.js`; before this the game could never end).
 - **Score** [R]: food behind the screen + population of living species + traits on living species. Ties go to more trait points, then more population points.
 
 ## Simplifications (on screen, same result in almost every game)

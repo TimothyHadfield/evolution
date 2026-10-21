@@ -69,7 +69,7 @@
     };
     for (let i = 0; i < n; i++) {
       const pl = (o.players && o.players[i]) || {};
-      s.players.push({ name: String(pl.name || 'Player ' + (i + 1)).slice(0, 24), bot: pl.bot || null,
+      s.players.push({ name: Array.from(String(pl.name || 'Player ' + (i + 1))).slice(0, 24).join(''), bot: pl.bot || null,
         hand: [], bag: 0, species: [], foodCard: null, done: false, eaten: 0 });
     }
     s.deck = shuffle(s, DECK.map(c => c.id));
@@ -81,13 +81,14 @@
   }
   function newSpecies(s) { return { id: s.nextId++, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [], born: s.round }; }
 
-  // draw k cards; returns true if the deck had to be reshuffled
+  // draw k cards; returns true if the deck ran out (reshuffled, or no cards left anywhere)
   function draw(s, p, k) {
     const pl = s.players[p];
     let reshuffled = false;
     for (let i = 0; i < k; i++) {
       if (!s.deck.length) {
-        if (!s.discard.length) break;
+        // no discards to reshuffle either: the deck has still run out, so the game must end
+        if (!s.discard.length) { reshuffled = true; break; }
         s.deck = shuffle(s, s.discard); s.discard = []; reshuffled = true;
       }
       pl.hand.push(s.deck.pop());

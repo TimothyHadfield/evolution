@@ -13,6 +13,7 @@
   const COLORS = ['#f0b354', '#6ea8fe', '#e98bd0', '#6ee7a8', '#c9a0ff', '#ff9f7a'];
   const LEVELS = ['easy', 'medium', 'hard'];
   const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
+  const cut = (s, n) => Array.from(s).slice(0, n).join(''); // never splits an emoji in half
   const T = id => DECK[id].trait;
   const STRENGTH = window.EvoStrength || null;
 
@@ -45,7 +46,7 @@
         if (!LEVELS.includes(st.level)) st.level = def.level;
         if (!['slow', 'normal', 'fast'].includes(st.speed)) st.speed = def.speed;
         st.odds = st.odds !== false; st.hints = st.hints !== false; st.threat = st.threat !== false; st.quick = st.quick === true;
-        st.name = typeof st.name === 'string' ? st.name.slice(0, 20) : '';
+        st.name = typeof st.name === 'string' ? cut(st.name, 20) : '';
         return out;
       }
     } catch (e) { /* private mode or bad JSON: start fresh */ }
@@ -160,9 +161,10 @@
     renderPlay();
   }
   async function onlineBtn(k) {
-    if (k === 'open') { ui.online = true; renderPlay(); loadOnline().catch(() => toast('Online play couldn’t load. Check your internet.')); return; }
+    if (k === 'open') { ui.online = true; try { history.pushState({ tab: 'play', on: 1 }, '', '#play'); } catch (e) { /* file:// */ } renderPlay(); loadOnline().catch(() => toast('Online play couldn’t load. Check your internet.')); return; }
     if (k === 'back') {
       if (net.snap && net.snap.status === 'lobby') { confirmBox('Leave this room?', 'Leave', leaveOnline); return; }
+      if (history.state && history.state.on) { history.back(); return; } // the same as the phone's Back
       ui.online = false; renderPlay(); return;
     }
     if (k === 'start') {
@@ -175,7 +177,7 @@
     }
     if (k !== 'create' && k !== 'join') return;
     const nameEl = $('#on-name');
-    if (nameEl) { store.settings.name = nameEl.value.trim().slice(0, 20); save(); }
+    if (nameEl) { store.settings.name = cut(nameEl.value.trim(), 20); save(); }
     const name = store.settings.name || 'Player';
     const codeEl = $('#on-code');
     const code = codeEl ? codeEl.value.trim().toUpperCase() : '';
@@ -198,12 +200,39 @@
   // ------------------------------------------------------------------ ui state
   const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], feedSel: null, target: null, needCard: null, prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
   function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.feedSel = null; ui.target = null; ui.needCard = null; }
+  function restoreDraft() {
+    try {
+      const g = store.game, d = g && g.draft;
+      if (d && Array.isArray(d.moves) && g.state.phase === 'play' && d.r === g.state.round && E.toAct(g.state).indexOf(ME) >= 0) ui.draft = d.moves.slice(0, 60);
+    } catch (e) { ui.draft = []; }
+  }
+  restoreDraft();
+  // the same game open in two tabs: whatever one tab saves, the other picks up (no move is ever undone)
+  window.addEventListener('storage', e => {
+    if (e.key !== KEY || !e.newValue || (table && table.online)) return;
+    try {
+      const s = JSON.parse(e.newValue);
+      if (!s || s.v !== 1) return;
+      store.game = s.game || null; store.last = s.last || null;
+      Object.assign(store.settings, s.settings || {});
+      table = store.game && store.game.state ? new LocalTable(store.game) : null;
+      if (table) table.view();
+    } catch (x) { return; }
+    clearTimeout(ui.botTimer); ui.gen++; resetSel(); restoreDraft(); ui.hideOver = false;
+    render();
+  });
+  // a tab in the background doesn't play the computers' turns; they carry on when you come back
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.tab === 'play' && isLocal()) renderPlay(); });
 
   // ------------------------------------------------------------------ small helpers
   function heat(x, lo, hi) { const f = Math.max(0, Math.min(1, (x - lo) / (hi - lo))); return 'hsl(' + Math.round(f * 130) + ', 70%, 62%)'; }
   const pct = x => Math.round(x * 100) + '%';
   const qBtn = text => '<button class="q" data-q="' + esc(text) + '" aria-label="Why?">?</button>';
   function toast(msg) {
+    msg = String(msg || '');
+    // the browser's own words when the online code can't download (no internet) mean nothing to a player
+    if (/importing a module|module script|failed to fetch|load failed|networkerror/i.test(msg)) msg = 'Online play couldn’t load. Check your internet.';
+    if ([...document.querySelectorAll('.toast')].some(t => t.textContent === msg)) return; // the same note once
     const t = document.createElement('div');
     t.className = 'toast'; t.textContent = msg;
     document.body.appendChild(t);
@@ -216,12 +245,27 @@
       '<button class="btn ghost" data-c="no">Cancel</button><button class="btn primary" data-c="yes">' + esc(yes) + '</button></div></div>';
     back.addEventListener('click', e => {
       const b = e.target.closest('[data-c]');
-      if (e.target === back || b) { back.remove(); if (b && b.dataset.c === 'yes') onYes(); }
+      if (e.target === back || b) { back.remove(); overlayClosed(); if (b && b.dataset.c === 'yes') onYes(); }
     });
     document.body.appendChild(back);
+    overlayOpened();
+  }
+  // Back closes an open sheet or question instead of leaving the page: each one gets a history entry,
+  // which is taken back off when it is closed another way
+  function overlayOpen() { return !!($('#sheet') || document.querySelector('.confirm-back:not(#over)')); }
+  function overlayOpened() {
+    if (ui.ovHist) return;
+    try { history.pushState({ tab: ui.tab, ov: 1 }, '', location.hash || '#' + ui.tab); ui.ovHist = true; } catch (e) { /* file:// */ }
+  }
+  function overlayClosed() {
+    setTimeout(() => {
+      if (!ui.ovHist || overlayOpen()) return;
+      ui.ovHist = false; ui.skipPop = true;
+      try { history.back(); } catch (e) { ui.skipPop = false; }
+    }, 0);
   }
   function sheet(title, html, onClick) {
-    closeSheet();
+    const old = $('#sheet'); if (old) old.remove(); // one sheet replaces another on the same history entry
     const back = document.createElement('div');
     back.className = 'sheet-back'; back.id = 'sheet';
     back.innerHTML = '<div class="sheet"><div class="row"><h3 class="grow">' + esc(title) + '</h3><button class="btn small ghost" data-close>Close</button></div><div class="scroll">' + html + '</div></div>';
@@ -230,8 +274,9 @@
       if (onClick) onClick(e);
     });
     document.body.appendChild(back);
+    overlayOpened();
   }
-  function closeSheet() { const s = $('#sheet'); if (s) s.remove(); }
+  function closeSheet() { const s = $('#sheet'); if (s) { s.remove(); overlayClosed(); } }
   // soft hyphens so long one-word trait names break cleanly on small cards instead of being cut off
   const SOFT = { Intelligence: 'Intelli­gence', Cooperation: 'Cooper­ation', Burrowing: 'Burrow­ing', Carnivore: 'Carni­vore', Scavenger: 'Scav­enger', Symbiosis: 'Sym­biosis' };
   const tName = t => esc(SOFT[t] || t);
@@ -279,18 +324,30 @@
   });
   function showTab(tab, push) {
     if (!['play', 'lab', 'study', 'settings'].includes(tab)) tab = 'play';
+    const from = ui.tab;
     ui.tab = tab;
-    closeSheet();
+    const ov = ui.ovHist; ui.ovHist = false; // a sheet's history entry becomes the new tab's entry
+    const s = $('#sheet'); if (s) s.remove();
     document.querySelectorAll('.confirm-back:not(#over)').forEach(b => b.remove());
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
-    if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
+    try {
+      if (push && ov) history.replaceState({ tab }, '', '#' + tab);
+      else if (push && tab !== from) history.pushState({ tab }, '', '#' + tab);
+      else if (ov) { ui.skipPop = true; history.back(); }
+    } catch (e) { /* file:// */ }
     render();
   }
   window.addEventListener('popstate', e => {
-    const box = document.querySelector('.confirm-back:not(#over)');
-    if (box || $('#sheet')) { if (box) box.remove(); closeSheet(); try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (x) { /* file:// */ } return; }
-    showTab((e.state && e.state.tab) || (location.hash.slice(1) || 'play'), false); });
+    if (ui.skipPop) { ui.skipPop = false; return; }
+    if (overlayOpen()) { ui.ovHist = false; const box = document.querySelector('.confirm-back:not(#over)'); if (box) box.remove(); const s = $('#sheet'); if (s) s.remove(); return; }
+    const st = e.state || {};
+    // Back from the online screen goes to the setup screen it came from
+    if (ui.tab === 'play' && ui.online && !st.on && !(table && table.online)) {
+      if (net.snap && net.snap.status === 'lobby') { try { history.pushState({ tab: 'play', on: 1 }, '', '#play'); } catch (x) { /* file:// */ } confirmBox('Leave this room?', 'Leave', leaveOnline); return; }
+      ui.online = false; if ((st.tab || 'play') === 'play') { renderPlay(); return; }
+    }
+    showTab(st.tab || (location.hash.slice(1) || 'play'), false); });
 
   // help bubbles
   document.addEventListener('click', e => {
@@ -323,10 +380,10 @@
   function renderSetup() {
     const st = store.settings;
     const sample = [DECK.findIndex(c => c.trait === 'Carnivore'), DECK.findIndex(c => c.trait === 'Long Neck'), DECK.findIndex(c => c.trait === 'Hard Shell')];
-    vPlay.innerHTML = '<div class="setup">' +
+    vPlay.innerHTML = '<div class="setup home">' +
       '<div class="hero"><img src="icon.svg" alt=""><div><h1>Evolution Lab</h1><p>Grow species, feed them, out-evolve the table.</p></div></div>' +
       '<div class="art-strip">' + sample.filter(i => i >= 0).map((id, k) => cardFace(id, { cls: 'deal', delay: k * 90 })).join('') + '</div>' +
-      '<div class="panel"><span class="label">Computers</span>' +
+      '<div class="panel p-comp"><span class="label">Computers</span>' +
       '<div class="seg" data-set="opps">' + [1, 2, 3, 4, 5].map(n => '<button aria-pressed="' + (st.opps === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
       '<div class="row"><span class="label grow">Level</span>' + qBtn(strengthNote()) + '</div>' +
       '<div class="seg" data-set="level">' + LEVELS.map(l => '<button aria-pressed="' + (st.level === l) + '" data-v="' + l + '">' + cap(l) + '</button>').join('') + '</div>' +
@@ -502,11 +559,26 @@
     const side = '<div id="g-side"><div class="panel threatbox"><div class="row"><span class="label grow">Who can eat whom</span>' + qBtn('Each line is a carnivore that can attack right now, as the table looks. Face-down traits are not counted until they are revealed.') + '</div><div class="scroll" style="margin-top:6px">' + threatTable(v, threat) + '</div></div>' +
       '<div class="panel logbox"><span class="label">Log</span><div class="scroll" style="margin-top:6px">' + logHtml(v) + '</div></div></div>';
 
-    vPlay.innerHTML = '<div id="game"' + (v.players.length >= 4 ? ' class="crowd"' : '') + '>' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
+    // my planned (not yet sent) plays survive a reload
+    if (isLocal()) {
+      const d = v.phase === 'play' && ui.draft.length ? { r: v.round, moves: ui.draft } : null;
+      if (JSON.stringify(d) !== JSON.stringify(store.game.draft || null)) { store.game.draft = d; save(); }
+    }
+    const fitKey = innerWidth + 'x' + innerHeight + ':' + v.players.length;
+    if (!ui.fit || ui.fit.key !== fitKey) ui.fit = { key: fitKey, tight: false };
+    vPlay.innerHTML = '<div id="game" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
+    fitTable();
     layTable(v, handCards, revealing);
     afterRender(v);
     fxStep(v);
+  }
+  // a small phone that can't show every opponent: switch the whole table a size smaller (same frame, no
+  // flicker) and keep it that way for this screen size and table, so nothing shrinks and grows back
+  function fitTable() {
+    const g = $('#game'), o = g && g.querySelector('.opps');
+    if (!o || ui.fit.tight || innerWidth >= 900) return;
+    if (o.scrollHeight > o.clientHeight + 1) { ui.fit.tight = true; g.classList.add('tight'); }
   }
   // the physical bits: deck thickness, the messy discard pile, the held fan, flips at the reveal
   function layTable(v, handCards, revealing) {
@@ -514,7 +586,25 @@
     TB.deck($('#deck'), v.deckSize, { cls: 'evo-back', perCard: 0.08, max: 9 });
     TB.pile($('#discard'), discardCards(v), { seed: 'evo-discard', max: 4, rot: 13, off: 3 });
     if (ui.fan && ui.fan.disconnect) ui.fan.disconnect();
-    ui.fan = TB.fan($('#hand'), handCards, { pick: false, spread: 0.8, lift: 14, maxRot: 8, minHeight: 60 });
+    const hb = $('#hand');
+    ui.fan = TB.fan(hb, handCards, { pick: false, spread: 0.8, lift: 14, maxRot: 8, minHeight: 60 });
+    // a huge hand (a hoarder's 25-40 cards): held wider than the screen and slid sideways, so every card
+    // keeps a strip you can tap, instead of squeezing them into slivers
+    const cs = ui.fan && ui.fan.cards;
+    if (cs && cs.length > 1) {
+      const cw = cs[0].offsetWidth, step = parseFloat(cs[1].style.getPropertyValue('--x')) - parseFloat(cs[0].style.getPropertyValue('--x'));
+      const MIN = 16;
+      if (step < MIN) {
+        if (ui.fan.disconnect) ui.fan.disconnect();
+        hb.classList.remove('tbl-fan'); hb.classList.add('wide'); hb.innerHTML = '<div class="fanrow"></div>';
+        const row = hb.firstChild;
+        row.style.width = Math.ceil(cw + MIN * (cs.length - 1) + 24) + 'px';
+        ui.fan = TB.fan(row, handCards, { pick: false, spread: 0.8, lift: 14, maxRot: 3, minHeight: 60 });
+        // the hand stays slid where you left it when the table redraws (tapping a card never moves it)
+        hb.scrollLeft = ui.handScroll || 0;
+        hb.addEventListener('scroll', () => { ui.handScroll = hb.scrollLeft; }, { passive: true });
+      }
+    }
     if (revealing) document.querySelectorAll('.hole .fcards [data-reveal]').forEach(el => turnOver(el, +el.dataset.reveal, +el.dataset.at));
   }
   // the newest discards we know (food cards of earlier rounds), face up
@@ -523,7 +613,7 @@
     const cur = v.hist && v.hist[v.hist.length - 1];
     const ids = [];
     (v.hist || []).forEach(h => { if (v.phase === 'feed' && h === cur) return; (h.foodCards || []).forEach(id => ids.push(id)); });
-    return ids.slice(-4).map(id => cardFace(id));
+    return ids.slice(-Math.min(4, v.discardSize)).map(id => cardFace(id)); // never more cards than the pile holds
   }
   // plant food tokens heaped in the pond (up to 14 drawn; the number says the rest)
   function pondTokens(n) {
@@ -652,6 +742,8 @@
       return '<span class="msg">Waiting for <b>' + esc(who.slice(0, 2).join(', ') || 'the table') + (who.length > 2 ? ' +' + (who.length - 2) : '') + '</b>…</span>';
     }
     if (v.phase === 'food') {
+      // no cards at all (the deck and the discards ran dry): nothing to place, the round goes on
+      if (!dv.hand.length) return '<span class="msg"><b>No cards</b> to place as food.</span><button class="btn primary" data-act="nofood">Go on</button>';
       if (ui.sel == null) return '<span class="msg"><b>Pick a food card.</b> Its number goes into the watering hole.</span>';
       const f = DECK[ui.sel].food;
       return '<span class="msg">Adds <b>' + fmtFood(f) + '</b> plant food</span><button class="btn primary" data-act="food">Use as food</button>';
@@ -706,7 +798,7 @@
   }
   function logHtml(v) {
     const items = v.log.slice(-60).reverse();
-    return '<ul class="log">' + items.map(l => '<li class="' + (l.p === ME ? 'me' : '') + '"><span class="r">R' + l.r + '</span>' + esc(l.t.replace(/^You’s/, 'Your').replace(/^You (play|pass|eat|use)(e?s)\b/, 'You $1')) + '</li>').join('') + '</ul>';
+    return '<ul class="log">' + items.map(l => '<li class="' + (l.p === ME ? 'me' : '') + '"><span class="r">R' + l.r + '</span>' + esc(l.t.replace(/^You’s/, 'Your').replace(/ You’s /g, ' your ').replace(/^You (play|pass|eat|use)(e?s)\b/, 'You $1')) + '</li>').join('') + '</ul>';
   }
   function openLog() { const v = curView(); sheet('Log', logHtml(v) + (store.settings.threat ? '<div class="label" style="margin-top:12px">Who can eat whom</div>' + threatTable(v, O.threatMap(v)) : '')); }
 
@@ -715,7 +807,7 @@
     if (!r) return '';
     const rows = v.players.map((pl, p) => ({ p, pl, sc: r.scores[p] })).sort((a, b) => b.sc.total - a.sc.total);
     return '<div class="confirm-back" id="over"><div class="panel" style="max-width:420px"><div class="row"><b class="grow" style="font-size:18px">' +
-      (r.winners.indexOf(ME) >= 0 ? (r.winners.length > 1 ? 'Shared win!' : 'You win!') : esc(v.players[r.winners[0]].name) + ' wins') + '</b></div>' +
+      (r.winners.indexOf(ME) >= 0 ? (r.winners.length > 1 ? 'Shared win!' : 'You win!') : r.winners.length > 1 ? r.winners.map(p => esc(v.players[p].name)).join(' and ') + ' share the win' : esc(v.players[r.winners[0]].name) + ' wins') + '</b></div>' +
       '<table class="turns" style="margin:10px 0"><tr><th>Player</th><th>Food</th><th>Pop</th><th>Traits</th><th>Total</th></tr>' +
       rows.map(x => '<tr' + (r.winners.indexOf(x.p) >= 0 ? ' class="win"' : '') + '><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b data-tot="' + x.sc.total + '">' + x.sc.total + '</b></td></tr>').join('') +
       '</table><div class="row" style="justify-content:flex-end"><button class="btn ghost" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button></div></div></div>';
@@ -724,7 +816,7 @@
   function afterRender(v) {
     // computer feeding turns on this device: one every ~0.7 s so you can follow them
     clearTimeout(ui.botTimer);
-    if (isLocal() && !v.over) {
+    if (isLocal() && !v.over && !document.hidden) {
       const s = table.game.state;
       const bots = E.toAct(s).filter(p => s.players[p].bot);
       if (bots.length) {
@@ -828,6 +920,7 @@
       sfx('cardSlide'); fxFly($('#hand [data-card="' + c + '"]'), $('.hole .fcards') || $('.hole'));
       send({ t: 'food', card: c }); return;
     }
+    if (k === 'nofood') { send({ t: 'food' }); return; }
     if (k === 'undo') { if (ui.draft.length) sfx('cardSlide', { pitch: 0.8 }); ui.draft.pop(); renderPlay(); return; }
     if (k === 'done') {
       const moves = ui.draft.slice();
@@ -1149,7 +1242,7 @@
   vSet.addEventListener('change', e => {
     const k = e.target.dataset.sw;
     if (k) { store.settings[k] = e.target.checked; save(); }
-    if (e.target.id === 'set-name') { store.settings.name = e.target.value.trim().slice(0, 20); save(); }
+    if (e.target.id === 'set-name') { store.settings.name = cut(e.target.value.trim(), 20); save(); }
   });
   vSet.addEventListener('click', e => {
     const b = e.target.closest('[data-speed] button');
@@ -1164,5 +1257,7 @@
     ui.online = true;
     loadOnline().then(room => room.resume()).then(ok => { if (!ok) { store.online = false; ui.online = false; save(); } renderPlay(); }).catch(() => { store.online = false; ui.online = false; save(); renderPlay(); });
   }
-  window.__evo = { store, E, B, get table() { return table; } };
+  window.__evo = { store, E, B, get table() { return table; },
+    // tests: draw the online lobby from a made-up room (the real one needs the server)
+    lobby(snap) { net.snap = snap; ui.online = true; renderPlay(); } };
 })();

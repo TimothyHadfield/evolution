@@ -20,7 +20,7 @@
       const players = [];
       for (let i = 0; i < nSeats; i++) {
         const s = (seats && seats[i]) || { kind: 'computer' };
-        players.push({ name: String(s.name || (s.kind === 'computer' ? 'Computer ' + (i + 1) : 'Player ' + (i + 1))).slice(0, 24), bot: s.kind === 'computer' ? level : null });
+        players.push({ name: Array.from(String(s.name || (s.kind === 'computer' ? 'Computer ' + (i + 1) : 'Player ' + (i + 1)))).slice(0, 24).join(''), bot: s.kind === 'computer' ? level : null });
       }
       return E.newGame({ seed: Math.floor(rng() * 4294967296) >>> 0, players, quick: o.quick === true });
     },
