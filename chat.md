@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-10-20: edge pass (builder agent)
+- **Asked** (Tim, through the manager): make each game perfect in scenarios it doesn't expect or that are a little weird. Plus: 6 players at 320 px scrolled; setup scrolled in phone landscape.
+- **Built:** engine ends the game when deck and discard are both empty; `.tight` fit tier; landscape table grid and two-column setup; Back closes sheets; planned plays survive reload; two-tab sync; computers pause in a hidden tab; shared-win heading; real-size discard pile; wide scrolling hand; empty-hand "Go on"; emoji-safe names; plain offline message. Kit re-copied (cmp equal).
+- **Verified:** engine 33, fx 8, online 7, edge 4 pass (edge test seen hanging/failing on old code first). WebKit layout run at 320×568, 393×659, 659×393, 568×320, 640×400, 1280, 1920 and behave run 41/41, both repeated on live 0c96243.
+- **Open:** 6 players at 568×320 still scrolls inside the opponents' area; real iPhone.
+
 ## 2026-10-20: real-table look (builder agent)
 - **Asked** (Tim, through the manager): make every game look like the real board/cards laid out on a real table, as if seen through the player's glasses.
 - **Built:** wood table; opponents' seats across the top; Watering Hole board with deck stack and messy discard pile; my species boards with cube tracks, food tokens and tucked trait cards; my hand as a fan; deal from the deck; food cards turn over one by one; score-pad end screen; sideways-phone layout. Shared `_table` kit copied in; fx.js re-copied (1.0.3).
