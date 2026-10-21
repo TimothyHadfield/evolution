@@ -95,6 +95,25 @@ await test('4 players, laptop 1280x800: opponents fill the spare height (cubes >
   if (m.pageScroll || m.overflowX) throw new Error('scrolls: ' + JSON.stringify(m));
 });
 
+// nothing of an opponent is cut off: every name reads in full, every species is inside the table
+const S6 = game(6, 12, s => s.round >= 5 && s.phase === 'feed');
+for (const [w, h, st, n] of [[393, 659, S4, 4], [320, 568, S4, 4], [659, 393, S4, 4], [1440, 900, S6, 6], [1280, 800, S6, 6]]) {
+  await test(n + ' players at ' + w + 'x' + h + ': opponents\' names and species are never cut off', async () => {
+    const { ctx, page } = await open(w, h, st);
+    const bad = await page.evaluate(() => {
+      const out = [], or = document.querySelector('.opps').getBoundingClientRect();
+      document.querySelectorAll('.opp').forEach(op => {
+        const nm = op.querySelector('.nmx');
+        if (nm.scrollWidth > nm.clientWidth + 1) out.push('name "' + nm.textContent + '" cut (' + nm.clientWidth + ' of ' + nm.scrollWidth + ' px)');
+        op.querySelectorAll('.msp').forEach(m => { const r = m.getBoundingClientRect(); if (r.right > or.right + 1 || r.right > op.getBoundingClientRect().right + 4) out.push(nm.textContent + ' species cut at x=' + Math.round(r.right)); });
+      });
+      return out;
+    });
+    await ctx.close();
+    if (bad.length) throw new Error(bad.join('; '));
+  });
+}
+
 for (const [w, h] of [[1280, 800], [393, 659]]) {
   await test('tapping a hand card at ' + w + 'x' + h + ': the hand and the table stay exactly where they were', async () => {
     const { ctx, page } = await open(w, h, SP);

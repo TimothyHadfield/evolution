@@ -224,6 +224,7 @@
   .opp .oh .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
   .opp .oh .nmx { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .opp .oh .st { color: rgba(243,239,228,.7); white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .opp .oh .st:empty { display: none; } /* its gap goes to the name */
   .opp .oh .fp { width: 20px; height: 20px; font-size: 8px; }
   .opp .oh .bag { width: 20px; height: 22px; }
   .opp .oh .bag b { font-size: 9.5px; bottom: 2px; }
@@ -386,7 +387,7 @@
     .msp .fdots i { width: 10px; height: 10px; }
     .msp .ics .ic, .msp .ics .hidden { width: 24px; height: 26px; }
     .msp .ics .ti { width: 19px; height: 19px; }
-    .opp .ospc { gap: 10px; }
+    .opp .ospc { gap: 10px; flex-wrap: wrap; overflow-x: visible; } /* a long row wraps instead of being cut */
     .hole { gap: 16px; justify-content: center; padding: 4px 0 6px; }
     .hole .deckw, .hole .discw, .hole #discard { --card-w: 50px; }
     .hole .wh { flex: 0 1 600px; padding: 8px 14px 8px 10px; gap: 12px; border-radius: 12px; }

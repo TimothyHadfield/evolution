@@ -602,8 +602,13 @@
     // room for the + buttons that appear beside my boards while placing cards (kept all round, so my
     // boards don't change size between the phases)
     const plusRoom = v.over ? 0 : 2 * 52;
+    // a bigger table must never cut a player's name that fits at normal size
+    const cutNames = () => [...o.querySelectorAll('.nmx')].map(n => n.scrollWidth > n.clientWidth + 1);
+    let cut0 = ui.zoom && ui.zoom.key === key && ui.zoom.cut0;
+    if (!cut0) { set({ o: 1, m: 1, h: 1 }); cut0 = cutNames(); }
     const ok = (z, loose) => {
       set(z);
+      if (cutNames().some((c, i) => c && !cut0[i])) return false;
       if (g.scrollHeight > g.clientHeight + 1) return false;
       if (o.scrollHeight > o.clientHeight + 2 || o.scrollWidth > o.clientWidth + 2) return false;
       for (const s of o.querySelectorAll('.ospc')) if (s.scrollWidth > s.clientWidth + 2) return false;
@@ -639,11 +644,11 @@
       };
       const b0 = best;
       search(x => ({ o: Math.max(b0.o, Math.min(x, caps.o)), m: Math.max(b0.m, Math.min(x, caps.m)), h: Math.max(b0.h, Math.min(x, caps.h)) }), Math.min(b0.o, b0.m, b0.h), Math.max(caps.o, caps.m, caps.h), 4);
-      for (const [k, n] of [['o', 2], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
+      for (const [k, n] of [['o', 3], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
     }
     hand.style.minHeight = prevH; hand.style.alignSelf = '';
     best = { o: +best.o.toFixed(2), m: +best.m.toFixed(2), h: +best.h.toFixed(2) };
-    ui.zoom = Object.assign({ key, screen }, best);
+    ui.zoom = Object.assign({ key, screen, cut0 }, best);
     set(best);
   }
   // the physical bits: deck thickness, the messy discard pile, the held fan, flips at the reveal
