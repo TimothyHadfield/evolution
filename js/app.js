@@ -223,6 +223,9 @@
   });
   // a tab in the background doesn't play the computers' turns; they carry on when you come back
   document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.tab === 'play' && isLocal()) renderPlay(); });
+  // turning the phone or resizing the window: fit the table again to the new screen
+  let resizeT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (ui.tab === 'play' && table && ui.fit && ui.fit.key.split(':')[0] !== innerWidth + 'x' + innerHeight) renderPlay(); }, 200); });
 
   // ------------------------------------------------------------------ small helpers
   function heat(x, lo, hi) { const f = Math.max(0, Math.min(1, (x - lo) / (hi - lo))); return 'hsl(' + Math.round(f * 130) + ', 70%, 62%)'; }
@@ -568,17 +571,80 @@
     if (!ui.fit || ui.fit.key !== fitKey) ui.fit = { key: fitKey, tight: false };
     vPlay.innerHTML = '<div id="game" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
-    fitTable();
+    fitTable(v);
     layTable(v, handCards, revealing);
     afterRender(v);
     fxStep(v);
   }
   // a small phone that can't show every opponent: switch the whole table a size smaller (same frame, no
   // flicker) and keep it that way for this screen size and table, so nothing shrinks and grows back
-  function fitTable() {
+  function fitTable(v) {
     const g = $('#game'), o = g && g.querySelector('.opps');
-    if (!o || ui.fit.tight || innerWidth >= 900) return;
-    if (o.scrollHeight > o.clientHeight + 1) { ui.fit.tight = true; g.classList.add('tight'); }
+    if (!o) return;
+    if (!ui.fit.tight && innerWidth < 900 && o.scrollHeight > o.clientHeight + 1) { ui.fit.tight = true; g.classList.add('tight'); }
+    zoomTable(v, g);
+  }
+  // fill the table: the opponents' places, my boards and my hand grow (same look, bigger) into
+  // whatever wood is left empty, as large as still fits without scrolling. The size is kept until
+  // the screen or the table's contents change (never on a tap), so nothing jumps while you play.
+  function zoomTable(v, g) {
+    const o = g.querySelector('.opps'), mine = g.querySelector('.mine'), hand = g.querySelector('.hand');
+    const desk = innerWidth >= 900;
+    const screen = ui.fit.key + (ui.fit.tight ? 't' : '');
+    // a new search only when the screen or the number of species changes (each try costs a layout pass);
+    // otherwise the last size stays, with one check that it still fits
+    const key = screen + '|' + (v.over ? 'o' : '') + '|' + v.players.map(pl => pl.species.length).join(',');
+    const set = z => { o.style.zoom = z.o; mine.style.zoom = z.m; hand.style.zoom = z.h; };
+    // room the hand needs: one card held up plus its tilt (empty hands keep the same room)
+    const probe = document.createElement('i'); probe.className = 'tc'; hand.appendChild(probe);
+    const cw = parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 60; probe.remove();
+    const handNeed = h => (cw * 88 / 63 + 26) * h;
+    // room for the + buttons that appear beside my boards while placing cards (kept all round, so my
+    // boards don't change size between the phases)
+    const plusRoom = v.over ? 0 : 2 * 52;
+    const ok = (z, loose) => {
+      set(z);
+      if (g.scrollHeight > g.clientHeight + 1) return false;
+      if (o.scrollHeight > o.clientHeight + 2 || o.scrollWidth > o.clientWidth + 2) return false;
+      for (const s of o.querySelectorAll('.ospc')) if (s.scrollWidth > s.clientWidth + 2) return false;
+      if (mine.scrollHeight > mine.clientHeight + 1) return false;
+      if (z.m > 1 && !loose) { // (loose: my own planned new boards may slide sideways rather than shrink the table on a tap)
+        const kids = [...mine.children].filter(k => k.offsetWidth), mr = mine.getBoundingClientRect();
+        if (kids.length) {
+          const w = kids[kids.length - 1].getBoundingClientRect().right - kids[0].getBoundingClientRect().left;
+          if (w + plusRoom * z.m > mr.width - 4) return false;
+        }
+      }
+      if (desk) { const hole = g.querySelector('.hole'), wh = hole && hole.querySelector('.wh'); return !wh || hole.getBoundingClientRect().height >= wh.getBoundingClientRect().height + 4; }
+      // the hand's box is its grid row (the fan sets its own height later): it must hold a held card
+      return hand.getBoundingClientRect().height >= handNeed(z.h) - 1;
+    };
+    const caps = desk ? { o: 1.6, m: 1.25, h: 1 } : { o: 1.7, m: 1.35, h: 1.3 };
+    const prevH = hand.style.minHeight;
+    if (!desk) { hand.style.height = ''; hand.style.minHeight = '0px'; hand.style.alignSelf = 'stretch'; } // measure the row, not the last fan
+    const last = ui.zoom && ui.zoom.screen === screen ? { o: ui.zoom.o, m: ui.zoom.m, h: ui.zoom.h } : null;
+    const lastOk = !!last && ok(last, ui.zoom.key === key);
+    let best = lastOk ? last : { o: 1, m: 1, h: 1 };
+    ui.zoomSearches = ui.zoomSearches || 0;
+    if (!(lastOk && ui.zoom.key === key) && (lastOk || ok(best))) {
+      ui.zoomSearches++;
+      // largest size that still fits, found by halving: first all three together, then whatever room
+      // is left goes to each part alone (the opponents' pieces first)
+      const q = x => Math.round(x * 20) / 20;
+      const search = (mk, lo, hi, tries) => {
+        for (let n = 0; n < tries && q(hi) - q(lo) > 0.04; n++) {
+          const mid = q((lo + hi) / 2) > q(lo) ? q((lo + hi) / 2) : q(lo) + 0.05;
+          if (ok(mk(mid))) { lo = mid; best = mk(mid); } else hi = mid - 0.05;
+        }
+      };
+      const b0 = best;
+      search(x => ({ o: Math.max(b0.o, Math.min(x, caps.o)), m: Math.max(b0.m, Math.min(x, caps.m)), h: Math.max(b0.h, Math.min(x, caps.h)) }), Math.min(b0.o, b0.m, b0.h), Math.max(caps.o, caps.m, caps.h), 4);
+      for (const [k, n] of [['o', 2], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
+    }
+    hand.style.minHeight = prevH; hand.style.alignSelf = '';
+    best = { o: +best.o.toFixed(2), m: +best.m.toFixed(2), h: +best.h.toFixed(2) };
+    ui.zoom = Object.assign({ key, screen }, best);
+    set(best);
   }
   // the physical bits: deck thickness, the messy discard pile, the held fan, flips at the reveal
   function layTable(v, handCards, revealing) {
@@ -587,6 +653,8 @@
     TB.pile($('#discard'), discardCards(v), { seed: 'evo-discard', max: 4, rot: 13, off: 3 });
     if (ui.fan && ui.fan.disconnect) ui.fan.disconnect();
     const hb = $('#hand');
+    // the redrawn hand goes straight to its place (no slide in from the left edge on every tap)
+    hb.classList.add('settle');
     ui.fan = TB.fan(hb, handCards, { pick: false, spread: 0.8, lift: 14, maxRot: 8, minHeight: 60 });
     // a huge hand (a hoarder's 25-40 cards): held wider than the screen and slid sideways, so every card
     // keeps a strip you can tap, instead of squeezing them into slivers
@@ -605,6 +673,7 @@
         hb.addEventListener('scroll', () => { ui.handScroll = hb.scrollLeft; }, { passive: true });
       }
     }
+    void hb.offsetWidth; hb.classList.remove('settle');
     if (revealing) document.querySelectorAll('.hole .fcards [data-reveal]').forEach(el => turnOver(el, +el.dataset.reveal, +el.dataset.at));
   }
   // the newest discards we know (food cards of earlier rounds), face up

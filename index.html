@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/table.css?v=6">
+<link rel="stylesheet" href="css/table.css?v=7">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --card-hover: #212636; --line: #2a3042;
@@ -189,6 +189,9 @@
   .msp .fdots i.fat { background: var(--fat); border: 0; border-radius: 1px; box-shadow: 0 1px 0 #8b6a14; }
   @keyframes prey { 0%, 100% { box-shadow: 0 0 0 2px rgba(240,106,90,.25); } 50% { box-shadow: 0 0 0 5px rgba(240,106,90,.38); } }
   .msp.can, .sp.prey { outline-color: #f06a5a; animation: prey 1.3s ease-in-out infinite; }
+  /* a target on a crowded table: a few px of extra tap room around it (choosing it still needs the Attack button) */
+  .msp.can { position: relative; z-index: 2; }
+  .msp.can::after { content: ""; position: absolute; inset: -3px -2px; }
   .msp.tgt, .sp.tgt { outline-color: var(--accent-warm); box-shadow: 0 0 0 4px rgba(240,179,84,.3); animation: none; }
   .msp.gone { opacity: .25; }
   /* a trait card turned face up at the reveal: a quick 3-D turn */
@@ -215,7 +218,7 @@
   /* no box around a seat: just the name plate and that player's things on the wood (the plate glows on their turn) */
   .opp { background: none; border-radius: 10px; padding: 4px 6px 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .opp .oh { display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
-  .opp .plate { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 60%; padding: 1px 7px; border-radius: 4px; color: #f6efdc;
+  .opp .plate { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex: 0 1 auto; padding: 1px 7px; border-radius: 4px; color: #f6efdc;
     background: linear-gradient(#3b2a1a, #24180d); border: 1px solid #7a5a2e; box-shadow: inset 0 1px 0 rgba(255,220,150,.25), 0 2px 4px rgba(0,0,0,.4); line-height: 17px; }
   .opp.turn .plate { border-color: #f0c35a; box-shadow: 0 0 0 2px rgba(240,195,90,.45), 0 2px 4px rgba(0,0,0,.4); }
   .opp .oh .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
@@ -237,7 +240,7 @@
     .opps.many { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
     .opps.many .opp { padding: 2px 4px 3px; gap: 2px; border-radius: 9px; }
     .opps.many .oh { font-size: 11px; gap: 3px; }
-    .opps.many .opp .plate { padding: 0 5px; line-height: 15px; gap: 4px; max-width: 58%; }
+    .opps.many .opp .plate { padding: 0 5px; line-height: 15px; gap: 4px; }
     .opps.many .oh .st { display: none; }
     .opps.many .ohand { height: 16px; } .opps.many .ohand i { width: 10px; height: 14px; }
     .opps.many .opp .oh .bag { width: 16px; height: 18px; } .opps.many .opp .oh .bag b { font-size: 9px; bottom: 1px; }
@@ -257,6 +260,7 @@
     #game.crowd .hole .pondw { width: 74px; height: 42px; }
     #game.crowd .hole .hn { font-size: 21px; }
     #game.crowd .hole .fcards > * { --card-w: 24px; }
+    #game.crowd .hole .fcards > * + * { margin-left: -9px; }
     #game.crowd .hole .deckw, #game.crowd .hole #discard, #game.crowd .hole #discard .tc { --card-w: 26px; }
     #game.crowd .hand .tc { --card-w: 54px; }
     #game.crowd .mine { padding-top: 6px; padding-bottom: 4px; }
@@ -279,6 +283,7 @@
     #game.tight .hole .pondw { width: 64px; height: 36px; }
     #game.tight .hole .hn { font-size: 18px; }
     #game.tight .hole .fcards > * { --card-w: 21px; }
+    #game.tight .hole .fcards > * + * { margin-left: -8px; }
     #game.tight .hole .deckw, #game.tight .hole #discard, #game.tight .hole #discard .tc { --card-w: 22px; }
     #game.tight .hand .tc { --card-w: 46px; }
     #game.tight .mine { padding-top: 4px; padding-bottom: 2px; }
@@ -310,7 +315,7 @@
   .hole .fcards > * + * { margin-left: -12px; }
   .hole .fcards .tn { display: none; }
   .hole .fcards .art { top: 10%; bottom: 40%; }
-  .hole .fcards .fd { width: 21px; height: 16px; font-size: 10px; right: 1px; bottom: 1px; }
+  .hole .fcards .fd { width: 22px; height: 17px; font-size: 12px; right: 0; bottom: 1px; }
   .hole .fcards .tc::before, .hole #discard .tc::before { inset: 2px; border-width: 1px; }
   .hole #discard .tc { --card-w: 30px; cursor: default; }
   .hole #discard .tn { display: none; }
@@ -328,6 +333,7 @@
   /* held so each card sits on the one to its right: every food leaf (bottom right) stays in view */
   .hand.tbl-fan > .tbl-card, .hand .tbl-fan > .tbl-card { z-index: var(--z) !important; }
   .hand.tbl-fan > .tbl-card.is-up, .hand .tbl-fan > .tbl-card.is-up { z-index: 60 !important; }
+  .hand.settle .tc { transition: none !important; }
   .hand.wide { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
   .hand .tc .tn { left: 19%; right: 5%; }
   .hand .tc.sel { box-shadow: 0 0 0 2px var(--accent-warm), 0 2px 3px rgba(0,0,0,.25), 0 12px 22px rgba(0,0,0,.45); }
@@ -389,7 +395,7 @@
     .hole .hn { font-size: 40px; }
     .hole .hl { font-size: 10px; }
     .hole .fcards > * { --card-w: 46px; }
-    .hole .fcards > * + * { margin-left: -16px; }
+    .hole .fcards > * + * { margin-left: -4px; }
     .hole .fcards .art { top: 30%; bottom: 36%; }
     .hole .fcards .fd { width: 26px; height: 20px; font-size: 12.5px; }
     .hole .fcards .tn { display: block; font-size: 6.5px; }
@@ -560,17 +566,17 @@
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/cards.js?v=6"></script>
-<script src="js/engine.js?v=6"></script>
-<script src="js/bots.js?v=6"></script>
-<script src="js/odds.js?v=6"></script>
-<script src="js/lab-data.js?v=6"></script>
-<script src="js/strength-data.js?v=6"></script>
-<script src="js/online-game.js?v=6"></script>
-<script src="js/art.js?v=6"></script>
-<script src="js/fx.js?v=6"></script>
-<script src="js/table.js?v=6"></script>
-<script src="js/game-fx.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/cards.js?v=7"></script>
+<script src="js/engine.js?v=7"></script>
+<script src="js/bots.js?v=7"></script>
+<script src="js/odds.js?v=7"></script>
+<script src="js/lab-data.js?v=7"></script>
+<script src="js/strength-data.js?v=7"></script>
+<script src="js/online-game.js?v=7"></script>
+<script src="js/art.js?v=7"></script>
+<script src="js/fx.js?v=7"></script>
+<script src="js/table.js?v=7"></script>
+<script src="js/game-fx.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>
