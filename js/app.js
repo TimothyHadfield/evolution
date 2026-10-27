@@ -125,7 +125,7 @@
   const net = { room: null, snap: null, busy: false, sentV: null, timer: null, savedLast: false, connecting: false };
   function loadOnline() {
     if (net.room) return Promise.resolve(net.room);
-    return import(new URL('js/online.js?v=2', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=a3d0418b', location.href).href).then(mod => {
       if (net.room) return net.room;
       net.room = mod.createOnline({ game: EvoOnlineGame.game, gameId: 'evolution', botDelayMs: 700 });
       net.room.on('change', onNet);

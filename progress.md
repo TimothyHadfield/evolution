@@ -89,6 +89,7 @@ Driven by `EvoFx.diff(prevView, nextView, me)` on every table render, so compute
 One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound never lags the table.
 
 ## Traps
+- **online.js cache stamp (2026-10-27):** every import of `js/online.js` uses `?v=a3d0418b`, the `_online` content stamp. After a re-copy: put the new stamp from `node ../_online/tools/stamp.mjs` there, bump the importing file's `?v=` (and pwa.js `data-version`), then `node ../_online/tools/stamp.mjs --check .` must say OK.
 - Table size = `zoomTable` in `js/app.js`: CSS `zoom` on `.opps`/`.mine`/`.hand`, searched only when the screen or species counts change (`ui.zoom.key`), each try ~10 ms in WebKit. It refuses any size that cuts a name not cut at zoom 1 (`cut0`). New layout CSS must keep `tests/layout.test.mjs` green (needs Playwright in `~/.claude/tools/node_modules`, else it skips).
 - `layTable` adds `.settle` to the hand around `TB.fan` so cards don't transition from x=0 on redraw. Don't remove it.
 - `bank_Evolution.html` in the parent folder is a different project. Don't touch it.
