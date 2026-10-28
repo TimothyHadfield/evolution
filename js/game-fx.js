@@ -148,7 +148,8 @@
         // jaws close on the prey (another player's species first; the attacker only loses one to Horns)
         const gone = sameRound ? Object.keys(P).filter(id => !N[id]) : [];
         const prey = hurt.filter(id => N[id].p !== p)[0] || gone.map(id => P[id]).filter(x => x.p !== p).map(x => '@' + x.p)[0] || hurt[0] || (gone[0] ? '@' + P[gone[0]].p : null);
-        const preyEl = prey == null ? null : prey[0] === '@' ? areaSel(+prey.slice(1), me) : spSel(prey);
+        // several attacks in one step (catching up after a hidden tab): which prey is which is unclear, so no jaws
+        const preyEl = prey == null || lines.filter(x => x.k === 'atk').length > 1 ? null : prey[0] === '@' ? areaSel(+prey.slice(1), me) : spSel(prey);
         ev.push(preyEl ? { snd: 'snap', vol: V(p), anim: 'bite', el: preyEl, gap: 120 } : { snd: 'snap', vol: V(p), gap: 120 });
         ev.push({ snd: 'hit', vol: V(p), gap: 200 });
         hurt.forEach(id => ev.push({ anim: 'shake', el: spSel(id), gap: 0 }));

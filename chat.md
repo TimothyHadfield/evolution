@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-10-27: improvement pass (builder agent)
+- **Asked** (Tim, through the manager): "start building every single improvement you can think of after your competitor analysis… make our boardgames the best in every single metric". Known gap: no tutorial (the official app's guided tutorial is its strong point).
+- **Built:** guided first game (stacked round, 16 coach steps) + Rules sheet (`_coach`); My stats, 9 achievements, Daily game (`_profile`); Undo vs computer (Hint/Undo = counted, not rated; leaving after a move = loss; guided never counts); home-screen install + offline (`_pwa`); card scenes by family; jaws on prey; extinction moment.
+- **Verified:** engine 33, edge 4, fx 10 (2 new, seen failing on old code), tutorial 9, online 7, layout 10, tutorial-ui 18 (WebKit iPhone), pwa-check 18/18. Setup fits 393×659 without scrolling; laptop 1440 checked. Ladder at 3/4/6 players measured (300 games each). One read-only reviewer: 3 findings (old saves recorded late, stale Daily blocked today's, bite on wrong prey in batched attacks), all fixed, the first two seen failing on the old code.
+- **Open:** Tim's calls (achievement names, Daily setup, wording, simplifications); real iPhone.
+
 ## 2026-10-20: visibility pass (builder agent)
 - **Asked** (Tim, through the manager): cards/board too small to see; fill the screen with the board, make dense parts readable.
 - **Built:** `zoomTable` grows opponents, my boards and hand into empty wood (never cutting names/species); hand stays put on tap (`.settle`); desktop opponent rows wrap; laptop food cards overlap less; bigger phone food numbers; extra tap room on prey.

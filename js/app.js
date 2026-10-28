@@ -95,6 +95,11 @@
   function abandon() { if (leaving()) recordGame(store.game); }
   let table = null;
   if (store.game && store.game.state) {
+    // a game saved before My stats existed: never record it late; leaving it counts once you'd moved
+    if (store.game.gid == null) try {
+      const st = store.game.state;
+      store.game = meta(Object.assign({ moved: !!(st.round > 1 || (st.log || []).some(l => l.p === ME)), recorded: !!st.over }, store.game));
+    } catch (e) { /* the load below decides */ }
     try { table = new LocalTable(store.game); table.view(); } catch (e) { table = null; store.game = null; save(); }
   }
 
@@ -542,7 +547,7 @@
     if (window.Profile.isOpen()) window.Profile.closePanel();
     const g = store.game;
     // today's Daily already on the table: carry on with it (it can't be restarted)
-    if (g && g.daily && !g.state.over && isLocal()) { showTab('play', true); return; }
+    if (g && g.daily && g.daily === window.Profile.daily.date() && !g.state.over && isLocal()) { showTab('play', true); return; }
     if (dailyDone()) { window.Profile.openPanel({ tab: 'daily' }); return; }
     if (table && table.online) { toast('Leave the online room first'); return; }
     const go = () => startLocal({ daily: window.Profile.daily.date() });

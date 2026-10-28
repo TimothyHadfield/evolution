@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-20 (visibility pass merged; see Status for the live commit).
+Last updated: 2026-10-27 (improvement pass: guided first game, Rules sheet, My stats + Daily, Undo, PWA, card art, attack/extinction moments).
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -29,6 +29,8 @@ Live: https://timothyhadfield.github.io/evolution/
 | Real-table look (2026-10-20) | Done. Dark wood table seen from my seat: opponents' seats across the top (name plate, fan of card backs, food bag, mini species boards), the Watering Hole board in the middle with the draw deck (thickness shrinks) on the left and a messy discard pile on the right, my species boards in front of me (Body/Population tracks 1–6 with brown/green cubes, food tokens on the board, trait cards tucked above), my hand held as a fan. Cards at 63:88 with our own art and back. Deal = ghost backs fly from the deck; food cards turn over one by one at the reveal. Shared kit `css/table.css` + `js/table.js` (copies of `_table`, never edit). Phone sideways: hand moves to the right edge. Checked 320, 393, 659×393, 1280 |
 | Edge pass (2026-10-20) | Done, live at 0c96243. 54 weird scenarios, ~60 checks, 13 failed, all fixed but one (see below). 4 tests in `tests/edge.test.js` |
 | Visibility pass (2026-10-20) | Done, merged at 98f8351. Opponents, my boards and hand grow (CSS `zoom`) into empty wood, never cutting a name or species; hand no longer slides in from the left after each tap; laptop food cards no longer hide names; bigger phone food numbers. 393 px 4 players: opp cubes 14→17 px; 2 players 16→26; 1440 laptop 24→38. 6 players on phone unchanged (packed; tap a species for the big sheet). 10 tests in `tests/layout.test.mjs` (WebKit + Chrome). Shots: scratchpad `vis/evolution/before` + `after` |
+
+| Improvement pass (2026-10-27) | Live (620e47d, 5b9f2d5, then review fixes). **Guided first game** (`js/tutorial.js` + shared `_coach`: stacked round 1 vs one Easy computer, 16 steps: food card, new species, Carnivore, Body +1, feed, attack, bag), offered once on a fresh visit, replay in Settings > How to play. **Rules sheet** in our own words (7 tabs, trait tables). **My stats** (`_profile` 1.1.0 + `js/evoprofile.js`: Easy 1200 / Medium 1410 / Hard 1580, 9 achievements, **Daily game** = you + 2 Medium, same deal for everyone). **Undo** vs computer (not Daily/guided/online). **Home-screen install + offline** (`_pwa` 1.2.0, `tools/pwa-check.mjs` 18/18). **Card art**: family scene behind each drawing + paper grain. **Key moments**: jaws close on the prey, extinction dust + "EXTINCT" (animations on + no reduced motion only). Ladder at 3/4/6 players measured, no AI change needed (see Decisions) |
 
 ## Edge pass: weird scenarios (2026-10-20)
 Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mjs, behave.mjs). Re-run on live: layout 32/35 ok, behave 41/41 PASS.
@@ -77,10 +79,10 @@ Driven by `EvoFx.diff(prevView, nextView, me)` on every table render, so compute
 | Reveal: food cards (and traits) flip | `cardFlip` × food cards (max 4) | "+N"/"−N" floats on the food number |
 | Plant food taken (also Long Neck, Intelligence) | `crunch` (defined here) | eater pops, "+N" floats |
 | Cooperation / chain feeding | `pop`, rising pitch per extra species | each pops in turn, "+1" floats |
-| Carnivore attack | `snap` (defined here) then `hit`; meat eaten = `crunch` lower | prey shakes (or its owner's row if it died) |
+| Carnivore attack | `snap` (defined here) then `hit`; meat eaten = `crunch` lower | SVG jaws close on the prey (only when one attack in the step), prey shakes (or its owner's row if it died) |
 | Horns | `hit` (higher, softer) | attacker shakes |
 | Scavenger | `pop` | scavenger pops |
-| Species extinct | `extinct` (defined here; max 2 sounds per step) | owner's row flashes red |
+| Species extinct | `extinct` (defined here; max 2 sounds per step) | owner's row darkens, dust bursts, "EXTINCT" rises (plain red flash with animations off) |
 | Starving | `miss` (max 2 per step) | — |
 | Becomes MY turn (not every turn) | `turn` | phase title pulses |
 | Illegal tap / rejected move | `error` | species shakes |
@@ -112,6 +114,11 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Two tabs sync via the `storage` event on `evolution:v1`; planned plays live in `store.game.draft`.
 - Shared `online.js` `humanError` passes module-import failures through as raw browser text; `toast()` in app.js rewrites them. Fix belongs in `_online`.
 - Deal animations start at `#deck` (game-fx.js `from`); the hand cards are hidden until their ghost lands (4 s safety unhide).
+- Kit copies, never edit (`.gitattributes -text`): `js/coach.js`, `css/coach.css`, `js/profile.js`, `css/profile.css`, `js/pwa.js`, `sw.js`, `tools/make-icons.mjs`, `tools/pwa-check.mjs`. Kit warts worked around in index.html: `_coach` rules tabs scrolled sideways (`.coach-rules-nav` wrap override).
+- Saved-game fields (`meta()` in app.js): gid, moved, helped, recorded, daily, tut, undo. A save without `gid` is from before My stats: loaded as recorded-if-over, so it is never recorded late. Undo/Hint set `helped` (counted, not rated). Leaving after a move = a loss (`abandon()`). Guided game (`tut`) never counts.
+- The tutorial deal depends on `TU.SEED = 1` and the engine/bots: `tests/tutorial.test.js` proves the Carnivore still has prey after the scripted plays. If bots or the deal change and it fails, search a new seed.
+- Every build bump: `?v=` on changed scripts and pwa.js `data-version` in index.html (now 11). Leave the online.js stamp alone.
+- Tests: `tests/tutorial.test.js` (9, node), `tests/tutorial-ui.mjs` (18, WebKit iPhone: full guided game, Undo, rules tabs, old saves, stale Daily), `node tools/pwa-check.mjs` (18).
 
 ## Decisions
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
@@ -121,6 +128,9 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
   - leaf-trait order fixed (Fertile → Fat Tissue → Long Neck);
   - Scavengers take meat clockwise from the attacker.
 - Meat is capped at hunger plus fat room (reasoned).
+- The three simplifications stay (2026-10-27): Scavenger order can't change a result because the food bank is unlimited (reasoned); leaf-trait order and Intelligence-on-any-feeding are Tim's call (rules fidelity vs extra taps).
+- Computer ladder holds at every table size (2026-10-27, 300 games each, one of X among the rest): Medium among Easy 65% / 53% / 34% at 3 / 4 / 6 players (fair 33 / 25 / 17); Hard among Medium 56% / 56% / 57%; Hard among Easy 99% / 93% / 71%. 2-player: Hard beats Medium 73%. No AI change.
+- Daily game: you + 2 Medium computers, standard rules, no Undo. Online games are not recorded in My stats.
 
 ## NOT verified
 - On Tim's real iPhone (only checked in WebKit at 393 px).
@@ -134,6 +144,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Real-table look on a real iPhone (WebKit at 393/320/landscape only).
 - 6 players at 568×320 (iPhone SE sideways): the opponents' area still scrolls inside (by 4–41 px). All other sizes fit.
 - Edge-pass Back-button and two-tab behaviour on a real iPhone (WebKit headless only); real two-phone online not rerun.
+- Improvement pass: home-screen install on a real iPhone (pwa-check is WebKit headless); jaws/extinction look mid-game in a real attack (shots were triggered by hand at 393 + 1440); the guided game on a real phone.
 
 ## Rejected / parked
 - ~~Flight, Climate, Oceans~~: no public card lists to cross-check.

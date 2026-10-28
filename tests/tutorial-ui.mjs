@@ -137,6 +137,20 @@ try {
   ok(nav.sw <= nav.cw + 1 && nav.doc <= 393, 'rules tabs wrap, no sideways scroll', JSON.stringify(nav));
   await shot('rules');
   await page.click('.coach-rules-nav [data-sec="6"]'); await wait(400); await shot('rules-traits');
+  // ---- a game saved before My stats existed (no gid) that had ended: never recorded late
+  const before = await page.evaluate(() => window.Profile.stats().games);
+  await page.evaluate(() => { const E = window.__evo.E, B = window.__evo.B; let s = E.newGame({ seed: 5, players: [{ name: 'You' }, { name: 'C', bot: 'easy' }] });
+    for (let i = 0; i < 4000 && !s.over; i++) { const q = E.toAct(s)[0]; s = E.apply(s, q, B.decide(s, q, 'easy')); }
+    const st = JSON.parse(localStorage.getItem('evolution:v1')); st.game = { state: s, notes: [] }; localStorage.setItem('evolution:v1', JSON.stringify(st)); });
+  await page.goto(BASE + '&r=2'); await page.waitForFunction(() => window.__evo); await wait(800);
+  ok(await page.evaluate(() => window.Profile.stats().games) === before, 'old finished save not recorded late');
+  // ---- yesterday's unfinished Daily doesn't block today's
+  await page.evaluate(() => window.__evo.startDaily()); await wait(600);
+  await page.evaluate(() => { const st = JSON.parse(localStorage.getItem('evolution:v1')); st.game.daily = '2000-01-01'; localStorage.setItem('evolution:v1', JSON.stringify(st)); });
+  await page.goto(BASE + '&r=3'); await page.waitForFunction(() => window.__evo); await wait(500);
+  await page.evaluate(() => window.__evo.startDaily()); await wait(500);
+  const d = await page.evaluate(() => ({ g: window.__evo.store.game.daily, today: window.Profile.daily.date() }));
+  ok(d.g === d.today, "today's Daily dealt, not yesterday's resumed", JSON.stringify(d));
   ok(errors.length === 0, 'no page errors', errors.join(' | '));
 } finally {
   await browser.close();
