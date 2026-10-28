@@ -8,7 +8,14 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Evolution Lab">
 <link rel="stylesheet" href="css/table.css?v=7">
+<link rel="stylesheet" href="css/coach.css?v=9">
+<link rel="stylesheet" href="css/profile.css?v=9">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --card-hover: #212636; --line: #2a3042;
@@ -549,6 +556,15 @@
   #set-fx .seg button { min-height: 42px; min-width: 78px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-size: 14px; padding: 4px 12px; }
   #set-fx .seg button[aria-pressed="true"] { background: rgba(110,168,254,.14); border-color: var(--accent); color: var(--accent); }
   #set-fx .fx-test { min-height: 34px; border-radius: 8px; background: var(--card); font-size: 13.5px; }
+  /* guided game + rules sheet (css/coach.css): the first-visit offer sits above the phone's tab bar; the rules'
+     section tabs wrap instead of scrolling sideways on a phone; trait icons in the rules sit on their card colour */
+  :root { --coach-offer-bottom: calc(var(--tabbar) + 10px + env(safe-area-inset-bottom)); }
+  @media (min-width: 900px) { :root { --coach-offer-bottom: 18px; } }
+  .coach-rules .coach-rules-nav { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; }
+  .coach-rules .ti { display: inline-block; width: 22px; height: 22px; vertical-align: -6px; }
+  .coach-rules td:first-child { white-space: nowrap; }
+  .pf-row .btn { min-width: 0; }
+  .icon-btn:disabled { opacity: .35; cursor: default; }
 </style>
 </head>
 <body>
@@ -578,6 +594,11 @@
 <script src="js/fx.js?v=7"></script>
 <script src="js/table.js?v=7"></script>
 <script src="js/game-fx.js?v=7"></script>
-<script src="js/app.js?v=8"></script>
+<script src="js/coach.js?v=9"></script>
+<script src="js/profile.js?v=9"></script>
+<script src="js/tutorial.js?v=9"></script>
+<script src="js/evoprofile.js?v=9"></script>
+<script src="js/pwa.js?v=9" data-version="9"></script>
+<script src="js/app.js?v=9"></script>
 </body>
 </html>

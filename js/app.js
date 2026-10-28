@@ -60,11 +60,39 @@
   LocalTable.prototype.act = function (action) {
     const before = this.game.state;
     const note = noteFor(before, action);
-    this.game.state = E.apply(before, ME, action);
+    const next = E.apply(before, ME, action); // throws on an illegal move: nothing below changes
+    // Undo (vs the computer, not in the Daily or the guided game) takes back to just before this move
+    if (undoMode()) this.game.undo = { state: before, notes: this.game.notes.length };
+    this.game.moved = true;
+    this.game.state = next;
     if (note) { this.game.notes.push(note); if (this.game.notes.length > 300) this.game.notes.shift(); }
     save();
     return true;
   };
+  // ------------------------------------------------------------------ guided first game, rules, My stats
+  const COACH = window.COACH || null, TU = window.EvoTutorial || null, EP = window.EvoProfile || null;
+  const PF = () => !!(window.Profile && EP);
+  const TUT_ID = 'evo-first';
+  let tour = null;
+  // what a saved game carries besides the engine state (old saves get the defaults)
+  function meta(o) {
+    return Object.assign({ notes: [], gid: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), moved: false, helped: false, recorded: false, daily: null, tut: false, undo: null }, o);
+  }
+  function undoMode() { const g = store.game; return !!(table && !table.online && g && !g.tut && !g.daily); }
+  function canUndo() { const g = store.game; return undoMode() && !!g.undo && !g.state.over; }
+  // one result per game: a finished game, or one left after your first move (a loss); the guided game never counts
+  function recordGame(g) {
+    if (!PF() || !g || !g.state || g.recorded || g.tut || !(g.state.over || g.moved)) return null;
+    g.recorded = true; save();
+    try {
+      const r = EP.result({ st: g.state, me: 0, level: g.level, helped: g.helped, daily: !!g.daily });
+      if (g.daily) r.date = g.daily;
+      return (ui.rec = { gid: g.gid, out: window.Profile.recordResult(r) });
+    } catch (e) { return null; }
+  }
+  // a game you leave before it ends: counted as a loss once you've made a move
+  const leaving = () => { const g = store.game; return !!(g && g.state && !g.state.over && g.moved && !g.recorded && !g.tut && isLocal()); };
+  function abandon() { if (leaving()) recordGame(store.game); }
   let table = null;
   if (store.game && store.game.state) {
     try { table = new LocalTable(store.game); table.view(); } catch (e) { table = null; store.game = null; save(); }
@@ -343,6 +371,8 @@
   }
   window.addEventListener('popstate', e => {
     if (ui.skipPop) { ui.skipPop = false; return; }
+    if (COACH && COACH.rulesOpen()) { COACH.closeRules(); try { history.pushState({ tab: ui.tab }, '', location.hash || '#' + ui.tab); } catch (x) { /* file:// */ } return; }
+    if (window.Profile && window.Profile.isOpen()) { window.Profile.closePanel(); try { history.pushState({ tab: ui.tab }, '', location.hash || '#' + ui.tab); } catch (x) { /* file:// */ } return; }
     if (overlayOpen()) { ui.ovHist = false; const box = document.querySelector('.confirm-back:not(#over)'); if (box) box.remove(); const s = $('#sheet'); if (s) s.remove(); return; }
     const st = e.state || {};
     // Back from the online screen goes to the setup screen it came from
@@ -384,17 +414,23 @@
     const st = store.settings;
     const sample = [DECK.findIndex(c => c.trait === 'Carnivore'), DECK.findIndex(c => c.trait === 'Long Neck'), DECK.findIndex(c => c.trait === 'Hard Shell')];
     vPlay.innerHTML = '<div class="setup home">' +
-      '<div class="hero"><img src="icon.svg" alt=""><div><h1>Evolution Lab</h1><p>Grow species, feed them, out-evolve the table.</p></div></div>' +
+      '<div class="hero"><img src="icon.svg" alt=""><div class="grow"><h1>Evolution Lab</h1><p>Grow species, feed them, out-evolve the table.</p></div>' + (COACH && TU ? '<button class="btn small" data-go="rules">Rules</button>' : '') + '</div>' +
       '<div class="art-strip">' + sample.filter(i => i >= 0).map((id, k) => cardFace(id, { cls: 'deal', delay: k * 90 })).join('') + '</div>' +
       '<div class="panel p-comp"><span class="label">Computers</span>' +
       '<div class="seg" data-set="opps">' + [1, 2, 3, 4, 5].map(n => '<button aria-pressed="' + (st.opps === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
       '<div class="row"><span class="label grow">Level</span>' + qBtn(strengthNote()) + '</div>' +
       '<div class="seg" data-set="level">' + LEVELS.map(l => '<button aria-pressed="' + (st.level === l) + '" data-v="' + l + '">' + cap(l) + '</button>').join('') + '</div>' +
       '<button class="btn primary" data-go="start" style="width:100%">Start game</button></div>' +
+      (PF() ? '<div class="row pf-row"><button class="btn grow pf-open" data-go="stats">' + window.Profile.avatarSVG(window.Profile.avatar, 22) + 'My stats</button><button class="btn grow" data-go="daily">' + (dailyDone() ? 'Daily ✓' : 'Daily game') + '</button></div>' : '') +
       '<div class="panel"><div class="row"><span class="label grow">With friends</span></div>' +
       '<button class="btn" data-on="open" style="width:100%">Play online</button></div>' +
       (store.last ? '<button class="btn ghost small" data-go="study">Review last game</button>' : '') +
       '</div>';
+  }
+  function offerTutorial() {
+    if (!COACH || !tour || table || ui.online || ui.tab !== 'play' || store.last || tour.seen() || COACH.offered(TUT_ID)) return;
+    if (PF() && window.Profile.stats().games) return;
+    COACH.offer({ id: TUT_ID, title: 'New to Evolution?', text: 'Play a guided first round against one computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: startTutorial });
   }
   function strengthNote() {
     const S = window.EvoStrength;
@@ -452,6 +488,7 @@
 
   function goBtn(k) {
     if (k === 'start') return startLocal();
+    if (k === 'tut') return startTutorial();
     if (k === 'study') return showTab('study', true);
     if (k === 'new') {
       if (table && table.online) { confirmBox('Leave the online room?', 'Leave', leaveOnline); return; }
@@ -460,18 +497,72 @@
     if (k === 'menu') return openMenu();
     if (k === 'log') return openLog();
     if (k === 'hint') return showHint();
+    if (k === 'undo') return undoMove();
+    if (k === 'rules') return openRules();
+    if (k === 'stats') return openStats();
+    if (k === 'daily') return startDaily();
   }
-  function startLocal() {
+  function startLocal(o) {
+    o = o || {};
+    abandon();
+    if (COACH) COACH.closeOffer();
+    if (tour && !o.tut && tour.current() >= 0) tour.stop();
     clearTimeout(ui.botTimer); ui.gen++;
     const st = store.settings;
-    const players = [{ name: st.name || 'You', bot: null }];
-    for (let i = 0; i < st.opps; i++) players.push({ name: 'Computer ' + (i + 1), bot: st.level });
-    const state = E.newGame({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true });
-    store.game = { state, notes: [], level: st.level };
+    let state, level = st.level;
+    if (o.tut) { state = TU.build(E, st.name || 'You'); level = TU.LEVEL; }
+    else if (o.daily) {
+      // today's Daily: the same deal for everyone (standard rules), you + 2 Medium computers
+      level = EP.DAILY.level;
+      const players = [{ name: st.name || 'You', bot: null }];
+      for (let i = 0; i < EP.DAILY.computers; i++) players.push({ name: 'Computer ' + (i + 1), bot: level });
+      state = E.newGame({ seed: window.Profile.daily.seed(o.daily, 1), players, quick: false, stepBots: true });
+    } else {
+      const players = [{ name: st.name || 'You', bot: null }];
+      for (let i = 0; i < st.opps; i++) players.push({ name: 'Computer ' + (i + 1), bot: st.level });
+      state = E.newGame({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true });
+    }
+    store.game = meta({ state, level, daily: o.daily || null, tut: !!o.tut });
     ME = 0;
     table = new LocalTable(store.game);
-    resetSel(); ui.prevLog = 0; ui.hideOver = false; ui.fxFresh = true;
+    resetSel(); ui.prevLog = 0; ui.hideOver = false; ui.fxFresh = true; ui.rec = null;
     save();
+    if (ui.tab !== 'play') showTab('play', true); else renderPlay();
+  }
+  function startTutorial() {
+    if (!tour || !TU) return;
+    if (table && table.online) { toast('Leave the online room first'); return; }
+    tour.reset();
+    startLocal({ tut: true });
+    tour.start();
+  }
+  function dailyDone() { try { return !!(PF() && window.Profile.daily.played()); } catch (e) { return false; } }
+  function startDaily() {
+    if (!PF()) return;
+    if (window.Profile.isOpen()) window.Profile.closePanel();
+    const g = store.game;
+    // today's Daily already on the table: carry on with it (it can't be restarted)
+    if (g && g.daily && !g.state.over && isLocal()) { showTab('play', true); return; }
+    if (dailyDone()) { window.Profile.openPanel({ tab: 'daily' }); return; }
+    if (table && table.online) { toast('Leave the online room first'); return; }
+    const go = () => startLocal({ daily: window.Profile.daily.date() });
+    if (leaving()) confirmBox('Start today’s Daily game? The game on the table counts as a loss.', 'Start', go); else go();
+  }
+  function openStats() { if (PF()) { closeSheet(); window.Profile.openPanel(); } }
+  function openRules(open) {
+    if (!COACH || !TU) { rulesSheet(); return; }
+    closeSheet();
+    COACH.rules(Object.assign(TU.rules(TEXT, t => A.icon(t)), { open }));
+  }
+  function undoMove() {
+    const g = store.game;
+    if (!canUndo()) return;
+    clearTimeout(ui.botTimer); ui.gen++;
+    g.state = g.undo.state; g.notes.length = Math.min(g.notes.length, g.undo.notes);
+    g.undo = null; g.helped = true; g.draft = null;
+    resetSel(); restoreDraft(); save();
+    ui.fxTable = null; // no sounds for the table going back
+    sfx('cardSlide', { pitch: 0.8 });
     renderPlay();
   }
 
@@ -482,6 +573,7 @@
   function renderGame() {
     const v = curView();
     if (!v || !v.players) { vPlay.innerHTML = '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'; return; }
+    if (v.over) markOver(v);
     const me = v.players[ME];
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
     const dv = draftView(v);
@@ -498,6 +590,7 @@
     const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span>' +
       '<span class="ph grow' + (myTurn && !v.over ? ' me' : '') + '">' + phaseTxt + '</span>' +
       (store.settings.hints && !v.over && myTurn && isLocal() ? '<button class="icon-btn" data-go="hint" aria-label="Hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '') +
+      (undoMode() && !v.over ? '<button class="icon-btn" data-go="undo" aria-label="Undo your last move" title="Undo your last move"' + (canUndo() ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>' : '') +
       '<button class="icon-btn" id="btn-sheet-log" data-go="log" aria-label="Log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>' +
       '<button class="icon-btn" data-go="menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></div>';
 
@@ -575,6 +668,7 @@
     layTable(v, handCards, revealing);
     afterRender(v);
     fxStep(v);
+    if (COACH && store.game && store.game.tut) COACH.update();
   }
   // a small phone that can't show every opponent: switch the whole table a size smaller (same frame, no
   // flicker) and keep it that way for this screen size and table, so nothing shrinks and grows back
@@ -884,7 +978,7 @@
       (r.winners.indexOf(ME) >= 0 ? (r.winners.length > 1 ? 'Shared win!' : 'You win!') : r.winners.length > 1 ? r.winners.map(p => esc(v.players[p].name)).join(' and ') + ' share the win' : esc(v.players[r.winners[0]].name) + ' wins') + '</b></div>' +
       '<table class="turns" style="margin:10px 0"><tr><th>Player</th><th>Food</th><th>Pop</th><th>Traits</th><th>Total</th></tr>' +
       rows.map(x => '<tr' + (r.winners.indexOf(x.p) >= 0 ? ' class="win"' : '') + '><td>' + esc(x.p === ME ? 'You' : x.pl.name) + '</td><td class="n">' + x.sc.food + '</td><td class="n">' + x.sc.pop + '</td><td class="n">' + x.sc.traits + '</td><td><b data-tot="' + x.sc.total + '">' + x.sc.total + '</b></td></tr>').join('') +
-      '</table><div class="row" style="justify-content:flex-end"><button class="btn ghost" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button></div></div></div>';
+      '</table>' + countedLine() + '<div class="row" style="justify-content:flex-end"><button class="btn ghost" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button></div></div></div>';
   }
 
   function afterRender(v) {
@@ -917,6 +1011,20 @@
       store.last = { view: E.view(table.game.state, ME), notes: store.game.notes.slice(), level: store.game.level };
       save();
     }
+    if (isLocal()) recordGame(store.game);
+  }
+  // under the score pad: how this game went into My stats
+  function countedLine() {
+    const g = store.game;
+    if (!isLocal() || !g || !PF()) return '';
+    let t;
+    if (g.tut) t = 'Guided game: not counted in My stats.';
+    else if (g.helped) t = 'Played with help (Undo or Hint): counted, not rated.';
+    else {
+      const e = ui.rec && ui.rec.gid === g.gid && ui.rec.out && ui.rec.out.elo;
+      t = (g.daily ? 'Today’s Daily game is in My stats.' : 'Counted in My stats.') + (e ? ' Rating ' + e.after + ' (' + (e.change >= 0 ? '+' : '') + e.change + ').' : '');
+    }
+    return '<p class="small" style="margin:0 0 10px;color:#6b5b3e">' + esc(t) + '</p>';
   }
 
   // ------------------------------------------------------------------ game clicks
@@ -1032,6 +1140,7 @@
 
   function showHint() {
     if (!isLocal()) return;
+    if (store.game && !store.game.tut && !store.game.helped) { store.game.helped = true; save(); }
     const s = table.game.state;
     const a = B.decide(s, ME, 'hard');
     if (s.phase === 'food') { ui.sel = a.card; renderPlay(); toast('Hard computer would feed with ' + T(a.card) + ' (' + fmtFood(DECK[a.card].food) + ')'); return; }
@@ -1052,10 +1161,11 @@
       const b = e.target.closest('[data-m]');
       if (!b) return;
       closeSheet();
-      if (b.dataset.m === 'rules') rulesSheet();
-      if (b.dataset.m === 'new') confirmBox('Start a new game?', 'New game', startLocal);
+      const loss = leaving() ? ' This game counts as a loss.' : '';
+      if (b.dataset.m === 'rules') openRules();
+      if (b.dataset.m === 'new') confirmBox('Start a new game?' + loss, 'New game', () => startLocal());
       if (b.dataset.m === 'leave') confirmBox('Leave the online room?', 'Leave', leaveOnline);
-      if (b.dataset.m === 'quit') confirmBox('End this game?', 'End', () => { clearTimeout(ui.botTimer); ui.gen++; store.game = null; table = null; save(); renderPlay(); });
+      if (b.dataset.m === 'quit') confirmBox('End this game?' + loss, 'End', () => { abandon(); if (tour && tour.current() >= 0) tour.stop(); clearTimeout(ui.botTimer); ui.gen++; store.game = null; table = null; save(); renderPlay(); });
     });
   }
   function rulesSheet() {
@@ -1307,7 +1417,9 @@
       '<div class="seg" data-speed>' + ['slow', 'normal', 'fast'].map(k => '<button aria-pressed="' + (st.speed === k) + '" data-v="' + k + '">' + cap(k) + '</button>').join('') + '</div>' +
       '<div class="setrow"><span class="grow"><b>Name</b><span>Shown to friends online</span></span><input class="txt" id="set-name" maxlength="20" style="width:140px" value="' + esc(st.name) + '" placeholder="You"></div></div>' +
       '<div class="panel" id="set-fx"><span class="label">Sound &amp; effects</span></div>' +
-      '<div class="panel"><div class="row"><span class="label grow">Rules</span></div><div class="small" style="display:flex;flex-direction:column;gap:6px;margin-top:6px">' + RULES_HTML + '</div>' +
+      (COACH && TU ? '<div class="panel"><div class="row"><span class="label grow">How to play</span></div><div class="row" style="margin-top:8px"><button class="btn grow" data-s="rules">Rules</button><button class="btn grow" data-s="tut">Replay tutorial</button></div>' +
+        (PF() ? '<button class="btn pf-open" data-s="stats" style="width:100%;margin-top:8px">' + window.Profile.avatarSVG(window.Profile.avatar, 22) + 'My stats</button>' : '') :
+        '<div class="panel"><div class="row"><span class="label grow">Rules</span></div><div class="small" style="display:flex;flex-direction:column;gap:6px;margin-top:6px">' + RULES_HTML + '</div>') +
       '<p class="muted small" style="margin:8px 0 0">Base game, 2nd printing (2015): 129 cards, 17 traits, 2–6 players. Our own words and drawings.</p></div>' +
       '<div class="panel"><div class="row"><span class="label grow">How strong are the computers?</span></div><p class="small" style="margin:6px 0 0">' + esc(strengthNote()) + '</p></div>' +
       '<p class="ver">Evolution Lab ' + VERSION + ' · <a href="../">All games</a></p></div>';
@@ -1321,9 +1433,34 @@
   vSet.addEventListener('click', e => {
     const b = e.target.closest('[data-speed] button');
     if (b) { store.settings.speed = b.dataset.v; save(); renderSettings(); }
+    const x = e.target.closest('[data-s]');
+    if (x) { const k = x.dataset.s; if (k === 'rules') openRules(); else if (k === 'stats') openStats(); else if (k === 'tut') { const go = () => startTutorial(); if (leaving()) confirmBox('Start the guided game? The game on the table counts as a loss.', 'Start', go); else go(); } }
   });
 
   // ------------------------------------------------------------------ boot
+  if (EP) EP.init(startDaily);
+  if (window.Profile) window.Profile.onChange(what => { if ((what === 'me' || what === 'result' || what === 'reset' || what === 'import') && ui.tab !== 'play') render(); else if (what !== 'open' && what !== 'close' && !table && ui.tab === 'play') renderPlay(); });
+  if (COACH && TU) {
+    tour = COACH.tour({
+      id: TUT_ID,
+      steps: TU.steps({
+        me: 0,
+        v: () => (isLocal() && store.game && store.game.tut ? curView() : null),
+        myTurn: () => { const x = isLocal() && store.game && store.game.tut ? curView() : null; return !!x && x.toAct.indexOf(ME) >= 0; },
+        draft: () => ui.draft, sel: () => ui.sel, mode: () => ui.mode,
+      }),
+      pauseIf: () => ui.tab !== 'play' || !isLocal() || !(store.game && store.game.tut) || overlayOpen() || !!(window.Profile && window.Profile.isOpen()),
+    });
+  }
+  // a new version reloads by itself only at a quiet moment (home-screen app, shared _pwa kit)
+  if (window.PWA) window.PWA.safeToReload = () => {
+    if (store.online || ui.online || (table && table.online)) return false;
+    if (overlayOpen() || (COACH && COACH.rulesOpen()) || (window.Profile && window.Profile.isOpen())) return false;
+    const a = document.activeElement;
+    if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return false;
+    if (tour && store.game && store.game.tut && tour.current() >= 0) return false;
+    return !table || !!(store.game && store.game.state.over) || ui.tab !== 'play';
+  };
   const startTab = (location.hash || '').slice(1);
   try { history.replaceState({ tab: 'play' }, '', location.pathname + location.search); } catch (e) { /* file:// */ }
   if (['lab', 'study', 'settings'].includes(startTab)) showTab(startTab, true); else showTab('play', false);
@@ -1331,7 +1468,9 @@
     ui.online = true;
     loadOnline().then(room => room.resume()).then(ok => { if (!ok) { store.online = false; ui.online = false; save(); } renderPlay(); }).catch(() => { store.online = false; ui.online = false; save(); renderPlay(); });
   }
-  window.__evo = { store, E, B, get table() { return table; },
+  if (tour && store.game && store.game.tut && !store.game.state.over) tour.resume(); // carry on after a reload
+  else offerTutorial();
+  window.__evo = { store, E, B, get table() { return table; }, get tour() { return tour; }, undo: undoMove, canUndo, startTutorial, startDaily, openRules, openStats, showTab,
     // tests: draw the online lobby from a made-up room (the real one needs the server)
     lobby(snap) { net.snap = snap; ui.online = true; renderPlay(); } };
 })();

@@ -1,0 +1,8 @@
+{
+  "repo": "evolution",
+  "ready": "!!(window.__evo && document.querySelector('[data-go=start], #hand .tc'))",
+  "play": ["(async () => { const w = ms => new Promise(r => setTimeout(r, ms)); const o = document.querySelector('.coach-offer [data-o=no]'); if (o) o.click(); document.querySelector('[data-go=start]').click(); for (let i = 0; i < 100 && !document.querySelector('#hand .tc'); i++) await w(100); await w(600); const s = window.__evo.store.game.state; document.querySelector('#hand [data-card=\"' + s.players[0].hand[0] + '\"]').click(); await w(200); document.querySelector('.acts [data-act=food]').click(); })()"],
+  "played": "(() => { const g = window.__evo.store.game; return !!g && g.state.phase === 'play' && g.state.round === 1 && !g.state.over; })()",
+  "safe": "document.querySelector('nav [data-tab=settings]') ? document.querySelector('nav [data-tab=settings]').click() : document.querySelector('[data-tab=settings]').click()",
+  "debug": "JSON.stringify({ phase: window.__evo && window.__evo.store.game && window.__evo.store.game.state.phase })"
+}
