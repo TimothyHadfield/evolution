@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-10-28: wave 3 "just make the games better" (builder agent)
+- **Asked** (Tim, through the manager): "Go ahead and go through each project adding features or changing things that you think should be changed… links to youtube videos… variations… Just make the games better." Brief: videos, the two rule shortcuts, cards/variants if real lists exist, settings/iPhone.
+- **Built:** leaf-trait order chosen by the owner (rulebook p.6), asked only when it changes the result; computers take the best order. Intelligence timing checked: already the 2017 rule. Videos tab (4 videos). No cards/house rules (none qualify).
+- **Verified:** engine 35 (2 new, seen failing), online 8 (1 new), tutorial 9, edge 4, fx 10, layout 10, tutorial-ui 18, leaf-ui 3 (new; fails on the live build), pwa-check 18/18. All-computer games identical to the old engine (300/300). Ladder 99/73/77%. Shots at 393, 320, 659×393, 1280, 1440 (6 and 3 players, setup, settings).
+- **Open:** real iPhone; real two-phone online leaf choice.
+
 ## 2026-10-27: improvement pass (builder agent)
 - **Asked** (Tim, through the manager): "start building every single improvement you can think of after your competitor analysis… make our boardgames the best in every single metric". Known gap: no tutorial (the official app's guided tutorial is its strong point).
 - **Built:** guided first game (stacked round, 16 coach steps) + Rules sheet (`_coach`); My stats, 9 achievements, Daily game (`_profile`); Undo vs computer (Hint/Undo = counted, not rated; leaving after a move = loss; guided never counts); home-screen install + offline (`_pwa`); card scenes by family; jaws on prey; extinction moment.

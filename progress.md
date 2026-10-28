@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-27 (improvement pass: guided first game, Rules sheet, My stats + Daily, Undo, PWA, card art, attack/extinction moments).
+Last updated: 2026-10-28 (wave 3: leaf-trait order chosen by the owner, Videos tab in the Rules sheet).
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -17,7 +17,7 @@ Live: https://timothyhadfield.github.io/evolution/
 | Part | State |
 |---|---|
 | Deck (129 cards, 17 traits, exact food numbers) | Done, tested |
-| Rules engine (2017 rulebook, Quick Play variant, 2–6 players) | Done, 33 tests |
+| Rules engine (2017 rulebook, Quick Play variant, 2–6 players) | Done, 35 tests |
 | Computers (Easy, Medium, Hard) | Done. 2 players: Hard beats Easy 99%, Medium 73%; Medium beats Easy 77% (1,400 games). At a 4-player table against three Medium: Hard wins 52% (fair share 25%) |
 | Odds (hole forecast, food needed, threat map) | Done |
 | Lab (traits, pairs, "Can it eat?", food deck) | Done (600 Hard games) |
@@ -31,6 +31,7 @@ Live: https://timothyhadfield.github.io/evolution/
 | Visibility pass (2026-10-20) | Done, merged at 98f8351. Opponents, my boards and hand grow (CSS `zoom`) into empty wood, never cutting a name or species; hand no longer slides in from the left after each tap; laptop food cards no longer hide names; bigger phone food numbers. 393 px 4 players: opp cubes 14→17 px; 2 players 16→26; 1440 laptop 24→38. 6 players on phone unchanged (packed; tap a species for the big sheet). 10 tests in `tests/layout.test.mjs` (WebKit + Chrome). Shots: scratchpad `vis/evolution/before` + `after` |
 
 | Improvement pass (2026-10-27) | Live (620e47d, 5b9f2d5, then review fixes). **Guided first game** (`js/tutorial.js` + shared `_coach`: stacked round 1 vs one Easy computer, 16 steps: food card, new species, Carnivore, Body +1, feed, attack, bag), offered once on a fresh visit, replay in Settings > How to play. **Rules sheet** in our own words (7 tabs, trait tables). **My stats** (`_profile` 1.1.0 + `js/evoprofile.js`: Easy 1200 / Medium 1410 / Hard 1580, 9 achievements, **Daily game** = you + 2 Medium, same deal for everyone). **Undo** vs computer (not Daily/guided/online). **Home-screen install + offline** (`_pwa` 1.2.0, `tools/pwa-check.mjs` 18/18). **Card art**: family scene behind each drawing + paper grain. **Key moments**: jaws close on the prey, extinction dust + "EXTINCT" (animations on + no reduced motion only). Ladder at 3/4/6 players measured, no AI change needed (see Decisions) |
+| Wave 3 (2026-10-28) | **Leaf-trait order** now follows the rulebook (p.6: the owner chooses): when a person's Fertile / Fat Tissue / Long Neck orders give different results, the action bar shows "Best order" + "Other order" (a sheet listing each different result); computers take the best order. Measured: 23 of 1,944 player-reveals (300 games) are affected. **Intelligence** checked: the 2017 rulebook says "during any of their feeding turns", which the engine already did. **Videos** tab in the Rules sheet (4 YouTube videos, oEmbed-checked). No new cards/house rules (none qualify, see Rejected). Settings/iPhone checked, no gaps (see Decisions) |
 
 ## Edge pass: weird scenarios (2026-10-20)
 Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mjs, behave.mjs). Re-run on live: layout 32/35 ok, behave 41/41 PASS.
@@ -118,17 +119,18 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Saved-game fields (`meta()` in app.js): gid, moved, helped, recorded, daily, tut, undo. A save without `gid` is from before My stats: loaded as recorded-if-over, so it is never recorded late. Undo/Hint set `helped` (counted, not rated). Leaving after a move = a loss (`abandon()`). Guided game (`tut`) never counts.
 - The tutorial deal depends on `TU.SEED = 1` and the engine/bots: `tests/tutorial.test.js` proves the Carnivore still has prey after the scripted plays. If bots or the deal change and it fails, search a new seed.
 - Every build bump: `?v=` on changed scripts and pwa.js `data-version` in index.html (now 11). Leave the online.js stamp alone.
-- Tests: `tests/tutorial.test.js` (9, node), `tests/tutorial-ui.mjs` (18, WebKit iPhone: full guided game, Undo, rules tabs, old saves, stale Daily), `node tools/pwa-check.mjs` (18).
+- Tests: `tests/tutorial.test.js` (9, node), `tests/tutorial-ui.mjs` (18, WebKit iPhone: full guided game, Undo, rules tabs, old saves, stale Daily), `tests/leaf-ui.mjs` (3, WebKit iPhone: leaf order choice + Undo + reload, Videos tab at 393/320), `node tools/pwa-check.mjs` (18).
+- **Leaf phase (2026-10-28):** between play and feed there is a phase `leaf` while a PERSON picks the order of their leaf traits (`s.leaf[seat]` = list of different results, best first; action `{t:'leaf', k}`). Computers never stop there (engine applies the best order for them); `bots.decide` answers `{t:'leaf',k:0}` for a seat handed to a computer online. `leafChoices` tries every order of up to 6 leaf cards on a small copy (more than 6: best order only). Food cards stay face down in `leaf` (view `hidingFood`). Any new phase code must handle `leaf`.
+- Rules-sheet links sit on cream paper: `.coach-rules .vids a` is dark blue (#2a4f9e) in index.html; the site's own link colour is unreadable there.
 
 ## Decisions
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
 - Quick Play is a Settings switch, forced on at 6 players.
-- Simplifications:
-  - Intelligence only on your own feeding turn;
-  - leaf-trait order fixed (Fertile → Fat Tissue → Long Neck);
-  - Scavengers take meat clockwise from the attacker.
+- One simplification left: Scavengers take meat clockwise from the attacker (can't change a result; the food bank is unlimited, reasoned).
 - Meat is capped at hunger plus fat room (reasoned).
-- The three simplifications stay (2026-10-27): Scavenger order can't change a result because the food bank is unlimited (reasoned); leaf-trait order and Intelligence-on-any-feeding are Tim's call (rules fidelity vs extra taps).
+- 2026-10-28: leaf-trait order is the owner's choice (rulebook p.6), asked only when orders give different results (~1% of reveals with 2+ leaf cards); "Best order" is one tap. Intelligence stays on your own feeding turns: that IS the 2017 rulebook ("during any of their feeding turns"); the older designer post allowing any time predates it.
+- 2026-10-28: all-computer games are identical to before the leaf change (300/300 same results), so the ladder stands; re-measured 2 players, 400 games each: Hard beats Easy 99%, Hard beats Medium 73%, Medium beats Easy 77%.
+- 2026-10-28: practical settings already cover computer speed, sound/volume/animations/celebrations (fx kit), odds, threat marks, hints, Quick Play, name, remembered setup (opponents + level). Nothing added. 6 players measured: 393×659, 320×568 (opps 1 px), 659×393, 1280, 1440 all fit with no page scroll; first-visit coach offer sits 10 px above the tab bar at 393/320/landscape.
 - Computer ladder holds at every table size (2026-10-27, 300 games each, one of X among the rest): Medium among Easy 65% / 53% / 34% at 3 / 4 / 6 players (fair 33 / 25 / 17); Hard among Medium 56% / 56% / 57%; Hard among Easy 99% / 93% / 71%. 2-player: Hard beats Medium 73%. No AI change.
 - Daily game: you + 2 Medium computers, standard rules, no Undo. Online games are not recorded in My stats.
 
@@ -144,8 +146,12 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Real-table look on a real iPhone (WebKit at 393/320/landscape only).
 - 6 players at 568×320 (iPhone SE sideways): the opponents' area still scrolls inside (by 4–41 px). All other sizes fit.
 - Edge-pass Back-button and two-tab behaviour on a real iPhone (WebKit headless only); real two-phone online not rerun.
+- Wave 3: the leaf-order choice in a real two-phone online game (node online-path test + local WebKit only); whether the 4 videos teach the 2nd edition exactly (titles checked, contents not watched).
 - Improvement pass: home-screen install on a real iPhone (pwa-check is WebKit headless); jaws/extinction look mid-game in a real attack (shots were triggered by hand at 393 + 1440); the guided game on a real phone.
 
 ## Rejected / parked
 - ~~Flight, Climate, Oceans~~: no public card lists to cross-check.
 - ~~1st printing deck~~: only 3 traits' old values are known.
+- ~~Promo traits~~ (2026-10-28): the Biodiversity / Alone and Unafraid / Arms Race traits are digital-only (Switch app); the physical promos (Hibernation, Night Prowler) have no public food values to cross-check.
+- ~~Evolution: The Beginning rules~~ (2026-10-28): a separate 88-card game whose cards play differently and include Flight traits; no public card list.
+- ~~House rules~~ (2026-10-28): searched; no commonly used, documented house rule beyond the rulebook's Quick Play (already built).
