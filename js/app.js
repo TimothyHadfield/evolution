@@ -323,7 +323,7 @@
   }
   // what is printed on a trait card: name across the top, the drawing, the rules text (big cards), the food leaf bottom right
   function faceInner(t, food, big) {
-    return '<span class="tn">' + tName(t) + '</span><span class="art">' + A.icon(t) + '</span>' + (big ? '<span class="tx">' + esc(TEXT[t] || '') + '</span>' : '') +
+    return '<span class="tn">' + tName(t) + '</span><span class="art" data-f="' + (A.FAMILY[t] || 'feed') + '">' + A.icon(t) + '</span>' + (big ? '<span class="tx">' + esc(TEXT[t] || '') + '</span>' : '') +
       (food != null ? '<span class="fd' + (food < 0 ? ' neg' : '') + '">' + fmtFood(food) + '</span>' : '');
   }
   // turn a face-down card over in 3-D: it turns edge-on, the face is swapped in, it turns back flat.

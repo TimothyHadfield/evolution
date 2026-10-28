@@ -143,9 +143,13 @@
       } else if (/ eats \d+ plant food/.test(t)) {
         fedGroup(p, 'crunch');
       } else if (l.k === 'atk') {
-        ev.push({ snd: 'snap', vol: V(p), gap: 120 });
         // every species that lost population to it shakes (the prey; the attacker too with Horns)
         const hurt = sameRound ? Object.keys(N).filter(id => P[id] && N[id].sp.pop < P[id].sp.pop) : [];
+        // jaws close on the prey (another player's species first; the attacker only loses one to Horns)
+        const gone = sameRound ? Object.keys(P).filter(id => !N[id]) : [];
+        const prey = hurt.filter(id => N[id].p !== p)[0] || gone.map(id => P[id]).filter(x => x.p !== p).map(x => '@' + x.p)[0] || hurt[0] || (gone[0] ? '@' + P[gone[0]].p : null);
+        const preyEl = prey == null ? null : prey[0] === '@' ? areaSel(+prey.slice(1), me) : spSel(prey);
+        ev.push(preyEl ? { snd: 'snap', vol: V(p), anim: 'bite', el: preyEl, gap: 120 } : { snd: 'snap', vol: V(p), gap: 120 });
         ev.push({ snd: 'hit', vol: V(p), gap: 200 });
         hurt.forEach(id => ev.push({ anim: 'shake', el: spSel(id), gap: 0 }));
         // prey eaten to the last one is already gone from the table: shake its owner's row instead
@@ -159,7 +163,7 @@
       } else if (/Scavenger takes/.test(t)) {
         fedGroup(p, 'pop', 1.2);
       } else if (l.k === 'ext') {
-        ev.push({ snd: 'extinct', vol: V(p), anim: 'flash', el: areaSel(p, me), color: 'var(--bad)', gap: 300 });
+        ev.push({ snd: 'extinct', vol: V(p), anim: 'extinct', el: areaSel(p, me), color: 'var(--bad)', gap: 300 });
       } else if (/starves to population/.test(t)) {
         ev.push({ snd: 'miss', vol: V(p), gap: 120 });
       }
@@ -217,6 +221,71 @@
       an.onfinish = fin; an.oncancel = fin; setTimeout(fin, 380 * k + 150);
     });
   }
+  // ---- the two big moments, drawn here in our own SVG/CSS (only with animations on and no reduced motion)
+  const moving = FX => {
+    if (!FX || !FX.settings || !FX.settings.animations) return false;
+    try { if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return false; } catch (e) { /* ignore */ }
+    return typeof document !== 'undefined' && !!document.body;
+  };
+  function over(el, css) {
+    const r = el.getBoundingClientRect();
+    const d = document.createElement('div');
+    d.className = 'evo-moment';
+    d.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;pointer-events:none;z-index:2147483000;' + (css || '');
+    document.body.appendChild(d);
+    return { d, r };
+  }
+  const anim = (node, frames, ms, o) => new Promise(res => {
+    let a; try { a = node.animate(frames, Object.assign({ duration: ms, fill: 'forwards' }, o || {})); } catch (e) { return res(); }
+    const fin = () => res(); a.onfinish = fin; a.oncancel = fin; setTimeout(fin, ms + 150);
+  });
+  // jaws: an upper and a lower row of teeth swing shut over the prey, then a red flash and a quick shake
+  function bite(el, FX, k) {
+    if (!el || !el.getBoundingClientRect || !moving(FX)) return Promise.resolve();
+    const { d, r } = over(el, 'overflow:visible');
+    const s = Math.max(44, Math.min(120, Math.min(r.width, r.height) * 1.1));
+    const teeth = up => '<svg viewBox="0 0 100 40" width="' + s + '" height="' + (s * 0.4) + '" style="position:absolute;left:50%;top:50%;margin-left:' + (-s / 2) + 'px;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.45))">' +
+      '<path d="' + (up ? 'M2 2Q50 -6 98 2L98 8L88 30L78 8L66 34L54 8L42 34L30 8L20 30L10 8L2 8Z' : 'M2 38Q50 46 98 38L98 32L88 12L78 32L66 6L54 32L42 6L30 32L20 12L10 32L2 32Z') +
+      '" fill="#fbf7ee" stroke="#5a1e16" stroke-width="3" stroke-linejoin="round"/></svg>';
+    d.innerHTML = '<div class="u">' + teeth(true) + '</div><div class="l">' + teeth(false) + '</div>';
+    const u = d.firstChild.firstChild, l = d.lastChild.firstChild;
+    u.style.marginTop = (-s * 0.4 - s * 0.05) + 'px'; l.style.marginTop = (s * 0.05) + 'px';
+    const ms = Math.round(300 * k);
+    const shut = (node, dir) => anim(node, [{ transform: 'translateY(' + (dir * s * 0.45) + 'px) rotate(' + (dir * 8) + 'deg)', opacity: 0 },
+      { transform: 'translateY(' + (dir * s * 0.4) + 'px) rotate(' + (dir * 8) + 'deg)', opacity: 1, offset: 0.25 },
+      { transform: 'translateY(' + (dir * s * 0.06) + 'px)', opacity: 1, offset: 0.7 }, { transform: 'translateY(' + (dir * s * 0.1) + 'px)', opacity: 0 }], ms, { easing: 'cubic-bezier(.5,0,.6,1)' });
+    const red = document.createElement('div');
+    red.style.cssText = 'position:absolute;inset:0;border-radius:8px;background:radial-gradient(circle,rgba(220,60,40,.55),rgba(220,60,40,0) 70%);opacity:0';
+    d.appendChild(red);
+    return Promise.all([shut(u, -1), shut(l, 1), anim(red, [{ opacity: 0 }, { opacity: 0, offset: 0.55 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], ms + 120)]).then(() => d.remove(), () => d.remove());
+  }
+  // extinction: the row darkens, a puff of dust bursts out and settles, "Extinct" rises and fades
+  function extinct(el, FX, k, color) {
+    if (!el || !el.getBoundingClientRect || !moving(FX)) return FX && FX.flash && el ? FX.flash(el, color) : Promise.resolve();
+    const { d, r } = over(el, 'overflow:visible;border-radius:10px');
+    const ms = Math.round(1100 * k);
+    const shade = document.createElement('div');
+    shade.style.cssText = 'position:absolute;inset:0;border-radius:inherit;background:radial-gradient(ellipse at 50% 60%,rgba(40,20,14,.7),rgba(120,40,30,.35) 60%,rgba(0,0,0,0));opacity:0';
+    d.appendChild(shade);
+    const ps = [anim(shade, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0.8, offset: 0.6 }, { opacity: 0 }], ms)];
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('div');
+      const sz = 5 + (i * 7) % 9, ang = (i / n) * Math.PI * 2 + (i % 3) * 0.2, dist = Math.min(r.width, 220) * (0.28 + ((i * 5) % 7) / 18);
+      p.style.cssText = 'position:absolute;left:50%;top:55%;width:' + sz + 'px;height:' + sz + 'px;margin:' + (-sz / 2) + 'px;border-radius:50%;background:' + (i % 2 ? '#8b6b4a' : '#bfa27a') + ';opacity:0';
+      d.appendChild(p);
+      const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist * 0.45;
+      ps.push(anim(p, [{ transform: 'translate(0,0) scale(.4)', opacity: 0 }, { transform: 'translate(' + dx * 0.6 + 'px,' + dy * 0.6 + 'px) scale(1.2)', opacity: 0.85, offset: 0.3 },
+        { transform: 'translate(' + dx + 'px,' + (dy + 14) + 'px) scale(.8)', opacity: 0 }], ms, { easing: 'cubic-bezier(.2,.7,.4,1)' }));
+    }
+    const t = document.createElement('div');
+    t.textContent = 'Extinct';
+    t.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-weight:900;font-size:' + Math.max(18, Math.min(30, r.height * 0.3)) + 'px;letter-spacing:.06em;text-transform:uppercase;color:#f2d7cf;text-shadow:0 2px 6px rgba(0,0,0,.8),0 0 2px #5a1e16;white-space:nowrap;opacity:0';
+    d.appendChild(t);
+    ps.push(anim(t, [{ transform: 'translate(-50%,-30%) scale(.8)', opacity: 0 }, { transform: 'translate(-50%,-50%) scale(1.05)', opacity: 1, offset: 0.25 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0.65 }, { transform: 'translate(-50%,-90%)', opacity: 0 }], ms));
+    return Promise.all(ps).then(() => d.remove(), () => d.remove());
+  }
+
   function fire(e, FX, env, k) {
     try {
       if (e.snd) { const o = {}; if (e.vol != null) o.vol = e.vol; if (e.pitch != null) o.pitch = e.pitch; FX.play(e.snd, o); }
@@ -226,6 +295,8 @@
       if (e.anim === 'deal') ps.push(dealIn(el, env.el(e.from), FX, k, env.table));
       else if (e.anim === 'count') env.all(e.el).forEach((x, i) => { if (e.vals && e.vals[i] != null) ps.push(FX.countUp(x, 0, e.vals[i], { duration: 800 })); });
       else if (e.anim === 'flash' && el) ps.push(FX.flash(el, e.color));
+      else if (e.anim === 'bite') ps.push(bite(el, FX, k));
+      else if (e.anim === 'extinct') ps.push(extinct(el, FX, k, e.color));
       else if (e.anim && el && FX[e.anim]) ps.push(FX[e.anim](el));
       if (e.float && el) ps.push(FX.floatText(el, e.float, e.color));
       return Promise.all(ps);

@@ -102,7 +102,21 @@ test('attack: snap, hit and a shake on the prey; extinct when it dies', () => {
   assert.ok(names.indexOf('extinct') > 1, 'prey with pop 1 goes extinct: ' + names);
   assert.ok(names.indexOf('crunch') > 0, 'the carnivore eats');
   assert.ok(ev.some(e => e.anim === 'shake'), 'something shakes');
-  assert.ok(ev.some(e => e.anim === 'flash' && /data-p="1"/.test(e.el)), 'extinct flashes the owner row');
+  assert.ok(ev.some(e => e.anim === 'extinct' && /data-p="1"/.test(e.el)), 'extinction moment on the owner row');
+  assert.ok(ev.some(e => e.anim === 'bite' && /data-p="1"/.test(e.el)), 'jaws on the row of the prey that died');
+});
+
+test('attack on a prey that survives: jaws close on that species, not the attacker', () => {
+  const s = table([[() => sp(4, 2, ['Carnivore'])], [() => sp(2, 3)]]);
+  const ev = X.diff(E.view(s, 0), E.view(E.apply(s, 0, { t: 'attack', s: 100, target: 101 }), 0), 0);
+  const b = ev.filter(e => e.anim === 'bite');
+  assert.strictEqual(b.length, 1); assert.strictEqual(b[0].el, '[data-sp="101"]'); assert.strictEqual(b[0].snd, 'snap');
+});
+
+test('big moments play only with animations on and draw nothing with them off', async () => {
+  const fx = spyFX(); fx.settings.animations = false;
+  await X.perform([{ anim: 'bite', el: 'x' }, { anim: 'extinct', el: 'y', color: 'red' }], fx, now);
+  assert.deepStrictEqual(fx.calls.anim.map(c => c[0]), ['flash'], 'extinct falls back to the plain flash');
 });
 
 test('Cooperation chain: one crunch, then a rising pop per extra species fed', () => {
