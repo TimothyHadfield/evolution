@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-28 (wave 3: leaf-trait order chosen by the owner, Videos tab in the Rules sheet).
+Last updated: 2026-10-28 (wave 3: leaf-trait order chosen by the owner, Videos tab in the Rules sheet). Kit sweep 2 (10-28): `_coach` 1.2.0 + `_pwa` 1.4.0 byte copies, offer `place:'auto', avoid:['[data-go="start"]']` (the `--coach-offer-bottom` override is gone; offer measured clear of the tab bar and Start at 393x659, 320x568, 659x393), pwa data-version 14, Settings 320px no sideways scroll, no `<select>`. `tests/leaf-ui.mjs` leaf-order check fails on main too ("Other order" button at y 624-684 of 659, under the fold): not fixed in the sweep.
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:

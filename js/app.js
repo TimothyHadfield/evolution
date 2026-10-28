@@ -436,7 +436,7 @@
   function offerTutorial() {
     if (!COACH || !tour || table || ui.online || ui.tab !== 'play' || store.last || tour.seen() || COACH.offered(TUT_ID)) return;
     if (PF() && window.Profile.stats().games) return;
-    COACH.offer({ id: TUT_ID, title: 'New to Evolution?', text: 'Play a guided first round against one computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: startTutorial });
+    COACH.offer({ id: TUT_ID, title: 'New to Evolution?', text: 'Play a guided first round against one computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: startTutorial, place: 'auto', avoid: ['[data-go="start"]'] });
   }
   function strengthNote() {
     const S = window.EvoStrength;

@@ -1,5 +1,7 @@
 # Evolution Lab: session log
 
+## 2026-10-28: kit sweep 2: coach 1.2.0 (offer place auto, avoids Start; old offer-bottom override removed), pwa 1.4.0 (data-version 14); engine/edge/fx/tutorial/online/layout/tutorial-ui + pwa-check 18/18 green; leaf-ui 1 fail, same on main.
+
 ## 2026-10-28: wave 3 "just make the games better" (builder agent)
 - **Asked** (Tim, through the manager): "Go ahead and go through each project adding features or changing things that you think should be changed… links to youtube videos… variations… Just make the games better." Brief: videos, the two rule shortcuts, cards/variants if real lists exist, settings/iPhone.
 - **Built:** leaf-trait order chosen by the owner (rulebook p.6), asked only when it changes the result; computers take the best order. Intelligence timing checked: already the 2017 rule. Videos tab (4 videos). No cards/house rules (none qualify).
