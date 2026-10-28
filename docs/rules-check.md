@@ -83,10 +83,11 @@ Status: every number below is asserted by `tests/engine.test.js`.
 - **Game end** [R]: the deck runs out while dealing → this round is the last. If it runs out from extinction draws → the next round is the last. If the deck AND the discard pile are both empty when a card is needed, that counts as the deck running out (test `tests/edge.test.js`; before this the game could never end).
 - **Score** [R]: food behind the screen + population of living species + traits on living species. Ties go to more trait points, then more population points.
 
-## Simplifications (on screen, same result in almost every game)
-- **Intelligence timing:** usable on your own feeding turn only. The designer allows it any time, even before the first player feeds.
-- **Fixed order of your own leaf traits:** Fertile, then Fat Tissue, then Long Neck. This is the best order for the owner.
-- **Scavenger order:** Scavengers take meat clockwise from the attacker.
+- **Leaf traits' order** [R p.6, checked 2026-10-28]: "If a player has more than 1 of these cards in play, they choose the order in which their traits activate." The engine tries every order of a player's leaf cards (up to 6 cards) and, when the orders give different results, asks a person to pick one (phase `leaf`, action `{t:'leaf', k}`; the best order is listed first). Computers take the best order. Tests: `tests/engine.test.js` "reveal: the owner chooses…" (seen failing on the old engine), `tests/leaf-ui.mjs`, `tests/online.test.mjs` 1b. Measured in 300 computer games: order changed the result in 23 of 1,944 player-reveals with 2+ leaf cards; the old fixed order was never worse.
+- **Intelligence timing** [R p.12, checked 2026-10-28]: "discard one or more cards from their hand during any of their feeding turns", "in addition to the player's normal feeding turn and as many times as you want". The engine already does exactly this (own feeding turn, repeatable). An earlier designer post (source D) allowed it any time; the 2017 rulebook we build narrows it to your feeding turns, so no change.
+
+## Simplifications
+- **Scavenger order:** Scavengers take meat clockwise from the attacker. The food bank is unlimited, so the order can't change a result (reasoned).
 
 ## Could not confirm (decided by reasoning)
 - **Can a Carnivore take more meat than its hunger?** The rulebook says no species holds more food than its population, unless it has Fat Tissue. We cap meat at hunger plus fat room.

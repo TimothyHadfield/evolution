@@ -34,6 +34,29 @@ const clone = x => JSON.parse(JSON.stringify(x));
   ok(games + ' online-path games (2-6 seats, both play variants) end cleanly; ' + moves + ' moves');
 }
 
+// 1b. Leaf-trait order (rulebook: the owner chooses): people are asked online too, the choice is in the
+// public view, and a seat handed to the computer answers it.
+{
+  let leafTurns = 0;
+  for (let g = 0; g < 60 && leafTurns < 3; g++) {
+    const n = 2 + (g % 4);
+    let s = game.setup(n, { quick: true }, mulberry(500 + g), humans(n));
+    while (!game.isOver(s)) {
+      const seat = game.toAct(s)[0];
+      if (s.phase === 'leaf') {
+        leafTurns++;
+        const pub = game.publicView(s);
+        assert.ok(pub.leaf && pub.leaf[seat] && pub.leaf[seat].length > 1, 'choices in the public view');
+        assert.equal(JSON.stringify(pub).indexOf('"seed"'), -1);
+        assert.throws(() => game.apply(clone(s), seat, { t: 'leaf', k: 99 }));
+      }
+      s = game.apply(clone(s), seat, clone(game.bot({ state: s, pub: game.publicView(s), mine: game.privateView(s, seat) }, seat)));
+    }
+  }
+  assert.ok(leafTurns >= 1, 'some game asked for a leaf order');
+  ok(leafTurns + ' leaf-order choices answered through the online path');
+}
+
 // 2. Illegal moves throw.
 {
   const s = game.setup(3, {}, mulberry(3), humans(3));

@@ -226,6 +226,51 @@ test('reveal: Fertile (needs food in the hole), Fat Tissue feeds, Long Neck from
   const [f, ft, ln] = s.players[0].species;
   assert.strictEqual(f.pop, 3); assert.strictEqual(ft.food, 2); assert.strictEqual(ft.fat, 0); assert.strictEqual(ln.food, 1);
 });
+// rulebook p.6: "If a player has more than 1 of these cards in play, they choose the order in which their traits activate."
+// Fertile + Fat Tissue on one species: Fertile first moves one more stored food onto the board.
+function leafTable(bot) {
+  let s = E.newGame({ seed: 11, players: [{ bot: bot || null }, {}, {}], quick: true });
+  for (let p = 0; p < 3; p++) if (s.phase === 'food' && E.toAct(s).indexOf(p) >= 0) s = E.apply(s, p, { t: 'food', card: s.players[p].hand[0] });
+  used.clear();
+  s.hole = 2;
+  s.players[0].species = [sp(4, 1, ['Fertile', 'Fat Tissue'], { fat: 4 })];
+  s.players[0].species[0].id = 600;
+  for (let p = 1; p < 3; p++) s.players[p].species.forEach(x => { x.traits = []; x.hidden = []; });
+  for (let p = 0; p < 3; p++) if (E.toAct(s).indexOf(p) >= 0) s = E.apply(s, p, { t: 'play', moves: [] });
+  return s;
+}
+test('reveal: the owner chooses the order of their leaf traits when it changes the result', () => {
+  const s = leafTable();
+  assert.strictEqual(s.phase, 'leaf');
+  assert.deepStrictEqual(E.toAct(s), [0]);
+  const opts = E.view(s, 0).leaf[0];
+  assert.strictEqual(opts.length, 2);
+  assert.deepStrictEqual(opts[0].order.map(a => a.t), ['Fertile', 'Fat Tissue']);
+  assert.deepStrictEqual(opts[1].order.map(a => a.t), ['Fat Tissue', 'Fertile']);
+  assert.ok(E.view(s, -1).leaf, 'the choice is public (traits are face up)');
+  assert.deepStrictEqual(E.view(s, 1).hist[E.view(s, 1).hist.length - 1].foodCards, [], 'food cards stay face down while choosing');
+  assert.throws(() => E.apply(s, 1, { t: 'leaf', k: 0 }), /turn/);
+  assert.throws(() => E.apply(s, 0, { t: 'leaf', k: 5 }), /order/);
+  const a = E.apply(s, 0, { t: 'leaf', k: 0 }), b = E.apply(s, 0, { t: 'leaf', k: 1 });
+  assert.strictEqual(a.phase, 'feed'); assert.strictEqual(b.phase, 'feed');
+  const x = a.players[0].species[0], y = b.players[0].species[0];
+  assert.deepStrictEqual([x.pop, x.food, x.fat], [2, 2, 2]);
+  assert.deepStrictEqual([y.pop, y.food, y.fat], [2, 1, 3]);
+});
+test('reveal: computers take the best leaf order without stopping; no choice when every order gives the same result', () => {
+  const s = leafTable('hard');
+  assert.strictEqual(s.phase, 'feed');
+  const x = s.players[0].species[0];
+  assert.deepStrictEqual([x.pop, x.food, x.fat], [2, 2, 2]);
+  // Fertile alone on one species and Long Neck on another: order can't matter
+  let t = E.newGame({ seed: 11, players: [{}, {}, {}], quick: true });
+  for (let p = 0; p < 3; p++) t = E.apply(t, p, { t: 'food', card: t.players[p].hand[0] });
+  used.clear(); t.hole = 2;
+  t.players[0].species = [sp(2, 2, ['Fertile']), sp(1, 2, ['Long Neck'])];
+  t.players[0].species.forEach((q, i) => { q.id = 700 + i; });
+  for (let p = 0; p < 3; p++) t = E.apply(t, p, { t: 'play', moves: [] });
+  assert.strictEqual(t.phase, 'feed');
+});
 test('scoring: bag + population + traits; ties broken by traits', () => {
   const s = table([[() => sp(1, 2, ['Horns', 'Climbing'])], [() => sp(1, 4)]]);
   s.players[0].bag = 5; s.players[1].bag = 5;

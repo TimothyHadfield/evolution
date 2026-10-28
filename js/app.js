@@ -132,6 +132,7 @@
   function describe(s, a) {
     if (!a) return '—';
     if (a.t === 'pass') return 'Stop feeding';
+    if (a.t === 'leaf') return 'Leaf traits in the best order';
     if (a.t === 'eat') return 'Eat plant food with ' + spName(s, a.s);
     if (a.t === 'intel') return 'Intelligence food for ' + spName(s, a.s);
     if (a.t === 'attack') return 'Attack ' + spName(s, a.target) + ' with ' + spName(s, a.s);
@@ -591,7 +592,7 @@
     if (pv && pv.round === v.round && TB && TB.animOn()) { ui.prevSp = {}; pv.players.forEach(pl => pl.species.forEach(sp => { ui.prevSp[sp.id] = sp; })); }
 
     // --- status
-    const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') : '';
+    const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'leaf' ? (myTurn ? 'Order your leaf traits' : 'Reveal') : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') : '';
     const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span>' +
       '<span class="ph grow' + (myTurn && !v.over ? ' me' : '') + '">' + phaseTxt + '</span>' +
       (store.settings.hints && !v.over && myTurn && isLocal() ? '<button class="icon-btn" data-go="hint" aria-label="Hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '') +
@@ -603,7 +604,7 @@
     const opps = v.players.map((pl, p) => {
       if (p === ME) return '';
       const turn = v.phase === 'feed' && v.turn === p;
-      const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : '';
+      const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : v.phase === 'leaf' && v.toAct.indexOf(p) >= 0 ? 'choosing' : '';
       return '<div class="opp' + (turn ? ' turn' : '') + '" data-p="' + p + '"><div class="oh"><span class="plate"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span></span>' +
         (v.first === p ? '<span class="fp" title="Feeds first">1st</span>' : '') +
         '<span class="st">' + st + '</span><span class="grow"></span>' + backsHtml(pl.handSize) + (pl.bag != null ? bagHtml(pl.bag, 'Food bag') : '') + '</div>' +
@@ -929,6 +930,10 @@
       return (n ? '<button class="btn" data-act="undo">Undo</button>' : '<span class="msg">Tap a card, then a species. <b>+</b> makes a new one.</span>') +
         '<button class="btn primary" data-act="done">' + (n ? 'Done (' + n + ')' : 'Done') + '</button>';
     }
+    if (v.phase === 'leaf') {
+      // rulebook: with more than one Fertile / Fat Tissue / Long Neck you choose their order (asked only when it matters)
+      return '<span class="msg"><b>Leaf traits:</b> their order changes the result.</span><button class="btn" data-act="leafmore">Other order</button><button class="btn primary" data-act="leafbest">Best order</button>';
+    }
     if (v.phase === 'feed') {
       const canPass = !fo.some(o => o.must); // same rule as the engine's canPass (works online too)
       if (ui.needCard) {
@@ -1115,6 +1120,8 @@
       send({ t: 'play', moves }); return;
     }
     if (k === 'pass') { send({ t: 'pass' }); return; }
+    if (k === 'leafbest') { send({ t: 'leaf', k: 0 }); return; }
+    if (k === 'leafmore') { leafSheet(v); return; }
     if (k === 'cancel') { ui.feedSel = null; ui.target = null; ui.needCard = null; ui.sel = null; renderPlay(); return; }
     if (k === 'eat') { send({ t: 'eat', s: ui.feedSel }); return; }
     if (k === 'intel') { ui.needCard = { t: 'intel', s: ui.feedSel }; renderPlay(); return; }
@@ -1125,6 +1132,19 @@
       if (o.ignore.length) { ui.needCard = { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, cards: [] }; renderPlay(); return; }
       send({ t: 'attack', s: ui.feedSel, target: ui.target }); return;
     }
+  }
+  // the different results my leaf-trait orders give (the engine lists each result once, the best first)
+  function leafSheet(v) {
+    const opts = (v.leaf && v.leaf[ME]) || [];
+    const mine = v.players[ME].species;
+    const pos = id => { const i = mine.findIndex(x => x.id === id); return mine.length > 1 ? ' (' + (i + 1) + ')' : ''; };
+    const res = o => o.res.map(r => { const sp = mine.find(x => x.id === r.id); return sp && (sp.pop !== r.pop || sp.food !== r.food || sp.fat !== r.fat) ? 'Species' + pos(r.id) + ': population ' + r.pop + ', food ' + r.food + (r.fat ? ', ' + r.fat + ' stored' : '') : ''; }).filter(Boolean).join('<br>');
+    sheet('Order of your leaf traits', '<p class="muted small" style="margin-top:0">They act before the food cards. Each choice below gives a different result.</p><div class="choices">' +
+      opts.map((o, k) => '<button class="btn' + (k ? '' : ' primary') + '" data-leaf="' + k + '" style="height:auto;padding:8px 12px;justify-content:flex-start"><span style="display:block;text-align:left"><b>' + esc(o.order.map(a => a.t + pos(a.s)).join(' → ')) + '</b>' + (k ? '' : ' · best') + '<br><span class="small">' + res(o) + '</span></span></button>').join('') + '</div>', e => {
+      const b = e.target.closest('[data-leaf]');
+      if (!b) return;
+      closeSheet(); send({ t: 'leaf', k: +b.dataset.leaf });
+    });
   }
   // Intelligence: collect the cards to discard (1 for food, one per switched-off trait for an attack)
   function pickDiscard(card) {
@@ -1181,7 +1201,7 @@
     '<p style="margin:0"><b>1. Deal:</b> 3 cards, plus 1 per species you have.</p>' +
     '<p style="margin:0"><b>2. Food card:</b> everyone puts one card face down at the watering hole.</p>' +
     '<p style="margin:0"><b>3. Play cards:</b> one player at a time, from the first player (Quick Play: all at once). A card becomes a face-down trait (up to 3 per species, 2 with two players, no doubles), a new species at either end, or +1 body size or +1 population (max 6). You may also discard a trait you have.</p>' +
-    '<p style="margin:0"><b>4. Reveal:</b> traits flip up; Fertile, Fat Tissue and Long Neck act; then the food cards add (or remove) plant food.</p>' +
+    '<p style="margin:0"><b>4. Reveal:</b> traits flip up; Fertile, Fat Tissue and Long Neck act (you choose their order); then the food cards add (or remove) plant food.</p>' +
     '<p style="margin:0"><b>5. Feed:</b> in turn order, feed one species at a time: 1 plant food from the watering hole, or a Carnivore attacks a smaller species (even your own) for meat. If a hungry species of yours can eat, you must feed it; otherwise you may pass.</p>' +
     '<p style="margin:0"><b>6. End of round:</b> unfed population starves (a species at 0 goes extinct: draw 1 card per trait it had); eaten food goes in your bag. The game ends after the round in which the deck runs out. Ties: most traits, then most population.</p>';
 

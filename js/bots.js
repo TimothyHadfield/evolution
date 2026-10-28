@@ -266,6 +266,7 @@
     const lv = level || s.players[p].bot || 'hard';
     if (s.phase === 'food') return chooseFood(s, p, lv);
     if (s.phase === 'play') return choosePlays(s, p, lv);
+    if (s.phase === 'leaf') return { t: 'leaf', k: 0 }; // the engine lists the best order first
     return chooseFeed(s, p, lv);
   }
   E.setBot((s, p) => decide(s, p, s.players[p].bot));

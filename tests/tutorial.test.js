@@ -53,9 +53,14 @@ test('tutorial steps: 16, every action step has a target', () => {
   st.filter(x => x.until).forEach(x => assert.ok(x.target));
 });
 
-test('rules: 7 sections, every trait listed once', () => {
+test('rules: 8 sections (Videos last), every trait listed once', () => {
   const r = TU.rules(C.TEXT, t => '<i>' + t + '</i>');
-  assert.strictEqual(r.sections.length, 7);
+  assert.strictEqual(r.sections.length, 8);
+  const vid = r.sections[7];
+  assert.strictEqual(vid.title, 'Videos');
+  const links = vid.html.match(/<a [^>]+>/g) || [];
+  assert.ok(links.length >= 2 && links.length <= 5, links.length + ' videos');
+  links.forEach(a => { assert.ok(/href="https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}"/.test(a), a); assert.ok(/target="_blank"/.test(a) && /rel="noopener"/.test(a), a); });
   const html = r.sections.map(x => x.html).join('');
   C.TRAITS.forEach(t => assert.strictEqual(html.split('<b>' + t + '</b>').length - 1, 1, t));
 });

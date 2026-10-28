@@ -92,14 +92,26 @@
       sections: [
         { id: 'goal', title: 'Goal', short: 'Goal', html: '<p>Score the most points. At the end you get <b>1 point for each food</b> in your bag, <b>1 for each population</b> of your living species, and <b>1 for each trait</b> on your living species.</p><p class="tip">Ties: most trait points, then most population.</p>' },
         { id: 'setup', title: 'Setup', short: 'Setup', html: '<p>Everyone starts with one species: body size 1, population 1. A random player goes first.</p><ul><li>2 players: 40 cards are set aside and a species holds at most 2 traits.</li><li>6 players: Quick Play is used.</li></ul>' },
-        { id: 'round', title: 'A round', short: 'Round', html: '<ol><li><b>Deal:</b> 3 cards, plus 1 for each species you have. A player with no species gets a new one.</li><li><b>Food card:</b> everyone puts one card face down at the watering hole.</li><li><b>Play cards:</b> one player at a time from the first player (Quick Play: everyone at once).</li><li><b>Reveal:</b> traits turn face up, then the food cards are added up.</li><li><b>Feed:</b> one species at a time, round the table.</li><li><b>End:</b> hungry species shrink; food goes into the bags; the first player passes left.</li></ol>' },
+        { id: 'round', title: 'A round', short: 'Round', html: '<ol><li><b>Deal:</b> 3 cards, plus 1 for each species you have. A player with no species gets a new one.</li><li><b>Food card:</b> everyone puts one card face down at the watering hole.</li><li><b>Play cards:</b> one player at a time from the first player (Quick Play: everyone at once).</li><li><b>Reveal:</b> traits turn face up. Fertile, Fat Tissue and Long Neck act; if you have more than one, you choose their order. Then the food cards are added up.</li><li><b>Feed:</b> one species at a time, round the table.</li><li><b>End:</b> hungry species shrink; food goes into the bags; the first player passes left.</li></ol>' },
         { id: 'cards', title: 'Playing cards', short: 'Cards', html: '<p>Each card can be played as:</p><ul><li>a <b>trait</b> on one of your species, face down (at most 3, never two of the same);</li><li>a <b>new species</b> at either end of your row;</li><li><b>+1 body size</b> or <b>+1 population</b> (6 at most).</li></ul><p>You may also discard a trait you have, to make room.</p><p class="tip">The number on each card is its plant food when you use it as your food card.</p>' },
         { id: 'feed', title: 'Feeding', short: 'Feeding', html: '<p>From the first player, each player feeds <b>one species</b>, then the next player goes.</p><ul><li>A plant eater takes 1 plant food from the watering hole.</li><li>A Carnivore attacks a species with a <b>smaller body size</b> (even your own) and eats meat equal to the prey’s body size. The prey loses 1 population.</li><li>A species is fed when its food equals its population.</li></ul><p>If a hungry species of yours can eat, you must feed it. Otherwise you may pass. The round ends when everyone has passed or can’t eat.</p>' },
         { id: 'end', title: 'End of the round and the game', short: 'End', html: '<ul><li>A species’ population drops to the food it ate. At 0 it goes extinct, and you draw a card for each trait it had.</li><li>The food on each species goes into your bag.</li><li>The game ends after the round in which the deck runs out.</li></ul>' },
         { id: 'traits', title: 'Traits', short: 'Traits', html: group('Hunting', ['Carnivore', 'Ambush', 'Pack Hunting', 'Intelligence']) + group('Defence', ['Burrowing', 'Climbing', 'Defensive Herding', 'Hard Shell', 'Horns', 'Symbiosis', 'Warning Call']) + group('Feeding and growth', ['Cooperation', 'Fat Tissue', 'Fertile', 'Foraging', 'Long Neck', 'Scavenger']) },
+        { id: 'videos', title: 'Videos', short: 'Videos', html: videos() },
       ],
     };
   }
 
-  return { SEED, LEVEL, SCRIPT, CPU, build, steps, rules };
+  // Learn videos (YouTube, open in a new tab). Each checked with YouTube's oEmbed on 2026-10-28: 200 + this title.
+  const VIDEOS = [
+    ['-BJ6TUFE_yY', 'Evolution - How To Play', 'Watch It Played', 'How to play'],
+    ['xdTOheLe7FQ', 'Evolution Board Game - How to Play', 'North Star Games', 'How to play, from the publisher'],
+    ['L3NfcZQ8UeI', 'Evolution in 3 Minutes', 'BoardGameBarrister', 'Quick overview'],
+    ['5BidKVvdOzQ', 'Evolution Strategy Tips with Luke Warren', 'Show Me How To Win', 'Strategy'],
+  ];
+  function videos() {
+    return '<ul class="vids">' + VIDEOS.map(v => '<li><a href="https://www.youtube.com/watch?v=' + v[0] + '" target="_blank" rel="noopener">' + v[1] + '</a><br><span class="small" style="color:#6b5b3e">' + v[3] + ' · ' + v[2] + '</span></li>').join('') + '</ul>';
+  }
+
+  return { SEED, LEVEL, SCRIPT, CPU, build, steps, rules, VIDEOS };
 });

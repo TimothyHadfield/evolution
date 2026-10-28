@@ -124,6 +124,7 @@
     if (s.phase === 'food') return s.players.map((pl, i) => (pl.foodCard === null ? i : -1)).filter(i => i >= 0);
     if (s.phase === 'play') return s.quick ? s.players.map((pl, i) => (!pl.done ? i : -1)).filter(i => i >= 0) : (s.playTurn >= 0 ? [s.playTurn] : []);
     if (s.phase === 'feed') return s.turn >= 0 ? [s.turn] : [];
+    if (s.phase === 'leaf') return s.leaf ? Object.keys(s.leaf).map(Number).sort((a, b) => a - b) : [];
     return [];
   }
 
@@ -247,6 +248,7 @@
       return;
     }
     if (s.phase === 'feed') return feed(s, seat, a);
+    if (s.phase === 'leaf') return chooseLeaf(s, seat, a);
     throw new Error('Nothing to do now');
   }
 
@@ -320,20 +322,62 @@
 
   // ------------------------------------------------------------------ reveal
   function reveal(s) {
-    const H = cur(s);
     s.playTurn = -1;
     // new traits flip face up
     s.players.forEach(pl => pl.species.forEach(sp => { sp.traits = sp.traits.concat(sp.hidden); sp.hidden = []; }));
-    // leaf traits, before the food cards: Fertile, then Fat Tissue, then Long Neck (the best order
-    // for the owner; the rules let each player choose the order of their own)
-    const holeBefore = s.hole;
-    eachInOrder(s, p => s.players[p].species.forEach(sp => {
-      if (has(sp, 'Fertile') && holeBefore > 0 && sp.pop < MAX) { sp.pop++; log(s, p, pname(s, p) + '’s Fertile species grows to population ' + sp.pop + '.'); }
-      if (sp.fat > 0) { const m = Math.min(sp.fat, needFood(sp)); sp.fat -= m; sp.food += m; }
-    }));
-    eachInOrder(s, p => s.players[p].species.slice().forEach(sp => {
-      if (has(sp, 'Long Neck') && canTake(sp) > 0) { const got = take(s, p, sp, 1, 'plant', 'bank'); if (got) log(s, p, pname(s, p) + '’s Long Neck eats ' + got + ' from the bank.'); }
-    }));
+    // leaf traits, before the food cards. Each player's own traits only touch their own species
+    // (Long Neck takes from the bank, Cooperation passes along their own row), so players are
+    // independent. Rulebook: a player with more than one of these chooses their order. When the
+    // order changes the result, a person picks one of the different results (s.leaf); computers
+    // take the first one, which is the best for the owner (Fertile, then Fat Tissue, then Long Neck).
+    s.phase = 'leaf';
+    s.leaf = {};
+    eachInOrder(s, p => {
+      const opts = leafChoices(s, p);
+      if (opts.length > 1 && !s.players[p].bot) s.leaf[p] = opts;
+      else for (const a of opts[0].order) leafOne(s, p, a);
+    });
+    if (!Object.keys(s.leaf).length) revealFood(s);
+  }
+  // the different results player p can get by ordering their leaf traits (the best order first)
+  function leafChoices(s, p) {
+    const acts = leafActs(s, p);
+    const best = acts.filter(a => a.t !== 'Long Neck').concat(acts.filter(a => a.t === 'Long Neck'));
+    // more than 6 leaf cards: too many orders to list (720+); keep the best order
+    if (acts.length < 2 || acts.length > 6) return [{ order: best }];
+    const out = [], seen = {};
+    const tryOrder = order => {
+      const pl = s.players[p];
+      // a small copy holding only what leaf traits touch
+      const m = { round: s.round, hole: s.hole, log: [], hist: [{ eaten: s.players.map(() => 0) }],
+        players: s.players.map((q, i) => (i === p ? { name: q.name, eaten: 0, species: clone(pl.species) } : null)) };
+      for (const a of order) leafOne(m, p, a);
+      const res = m.players[p].species.map(x => ({ id: x.id, pop: x.pop, food: x.food, fat: x.fat }));
+      const k = JSON.stringify(res);
+      if (!seen[k]) { seen[k] = 1; out.push({ order: order.slice(), res }); }
+    };
+    tryOrder(best);
+    (function perm(rest, acc) {
+      if (!rest.length) return tryOrder(acc);
+      for (let i = 0; i < rest.length; i++) { acc.push(rest[i]); perm(rest.slice(0, i).concat(rest.slice(i + 1)), acc); acc.pop(); }
+    })(acts, []);
+    return out;
+  }
+  // a person's leaf order: {t:'leaf', k} = the k-th result in s.leaf[seat]
+  function chooseLeaf(s, seat, a) {
+    const opts = s.leaf && s.leaf[seat];
+    if (a.t !== 'leaf' || !opts) throw new Error('Choose the order of your leaf traits');
+    const o = opts[a.k];
+    if (!Number.isInteger(a.k) || !o) throw new Error('No such order');
+    if (a.k > 0) log(s, seat, pname(s, seat) + ' orders leaf traits: ' + o.order.map(x => x.t).join(', ') + '.');
+    for (const x of o.order) leafOne(s, seat, x);
+    delete s.leaf[seat];
+    if (!Object.keys(s.leaf).length) revealFood(s);
+  }
+  // the food cards turn over and feeding starts
+  function revealFood(s) {
+    const H = cur(s);
+    s.leaf = null;
     let sum = 0;
     s.players.forEach(pl => { if (pl.foodCard >= 0) { sum += DECK[pl.foodCard].food; H.foodCards.push(pl.foodCard); s.discard.push(pl.foodCard); } });
     s.hole = Math.max(0, s.hole + sum);
@@ -343,6 +387,26 @@
     s.turn = s.first;
     s.passes = 0;
     settleTurn(s);
+  }
+  // the leaf-icon traits of player p that act before the food cards, one entry per card:
+  // {s: species id, t: 'Fertile' | 'Fat Tissue' | 'Long Neck'} (species left to right, Fertile, Fat Tissue, Long Neck)
+  const LEAF = ['Fertile', 'Fat Tissue', 'Long Neck'];
+  function leafActs(s, p) {
+    const out = [];
+    for (const sp of s.players[p].species) for (const t of LEAF) if (has(sp, t)) out.push({ s: sp.id, t });
+    return out;
+  }
+  // one leaf trait takes effect (Fertile reads the watering hole, which no leaf trait changes)
+  function leafOne(s, p, a) {
+    const sp = s.players[p].species.find(x => x.id === a.s);
+    if (!sp) return;
+    if (a.t === 'Fertile') {
+      if (s.hole > 0 && sp.pop < MAX) { sp.pop++; log(s, p, pname(s, p) + '’s Fertile species grows to population ' + sp.pop + '.'); }
+    } else if (a.t === 'Fat Tissue') {
+      if (sp.fat > 0) { const m = Math.min(sp.fat, needFood(sp)); sp.fat -= m; sp.food += m; }
+    } else if (a.t === 'Long Neck') {
+      if (canTake(sp) > 0) { const got = take(s, p, sp, 1, 'plant', 'bank'); if (got) log(s, p, pname(s, p) + '’s Long Neck eats ' + got + ' from the bank.'); }
+    }
   }
   function eachInOrder(s, f) { for (let k = 0; k < s.players.length; k++) f((s.first + k) % s.players.length); }
 
@@ -525,12 +589,12 @@
   // What seat `seat` may see (-1 = public). Hides hands, food behind screens, face-down traits,
   // face-down food cards, the deck order and the random seed.
   function view(s, seat) {
-    const hidingFood = s.phase === 'food' || s.phase === 'play';
+    const hidingFood = s.phase === 'food' || s.phase === 'play' || s.phase === 'leaf';
     const last = cur(s);
     const v = {
       round: s.round, phase: s.phase, first: s.first, turn: s.turn, playTurn: s.playTurn, hole: s.hole,
       deckSize: s.deck.length, discardSize: s.discard.length, quick: s.quick, maxTraits: s.maxTraits, removed: s.removed,
-      lastRound: s.lastRound, lastNext: s.lastNext, over: s.over, result: s.over ? s.result : null, toAct: toAct(s), log: s.log.slice(-80),
+      lastRound: s.lastRound, lastNext: s.lastNext, over: s.over, result: s.over ? s.result : null, toAct: toAct(s), log: s.log.slice(-80), leaf: s.phase === 'leaf' && s.leaf ? clone(s.leaf) : null,
       canPass: s.phase === 'feed' && s.turn === seat ? canPass(s, seat) : false,
       hist: s.hist.map(h => ({ round: h.round, added: hidingFood && h === last ? null : h.added, eaten: h.eaten, popLost: h.popLost, attacks: h.attacks,
         extinct: h.extinct, scores: h.scores || null, foodCards: hidingFood && h === last ? [] : h.foodCards.slice() })),
@@ -549,6 +613,6 @@
     return v;
   }
 
-  return { newGame, apply, applyRaw, toAct, view, feedOptions, canPass, attackBlock, intelNeeded, score, setBot,
+  return { newGame, apply, applyRaw, toAct, view, feedOptions, canPass, attackBlock, intelNeeded, score, setBot, leafActs, leafOne,
     hungry, canTake, needFood, isCarn, has, trait, MAX, rand, shuffle, clone, findSp };
 });
