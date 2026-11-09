@@ -87,6 +87,29 @@ Status: every number below is asserted by `tests/engine.test.js`.
 - **Intelligence timing** [R p.12, checked 2026-10-28]: "discard one or more cards from their hand during any of their feeding turns", "in addition to the player's normal feeding turn and as many times as you want". The engine already does exactly this (own feeding turn, repeatable). An earlier designer post (source D) allowed it any time; the 2017 rulebook we build narrows it to your feeding turns, so no change.
 - **Food card in the play turn** (Tim's chosen variant, 2026-11-09; the rulebook [R] has everyone place food cards first, at once). Tim: "make the card playing stage more fluid for the user so that they can choose to do any order of the playing cards, upgrading, etc. ... Basically keep everything the same except allow the user to choose when they place it in the watering hole". Engine: new games carry `s.fluid` (default on; old saves without it keep the two-step flow). Rounds start straight in `play`; the play action is `{t:'play', moves, food}`, and `food` is required while you held cards, must be in your hand and can't be a card a move uses (empty hand: no food card). Food cards stay hidden until the reveal, and the hole sum is unchanged. Computers pick the food card first (same choice as before), then their plays from the rest. The guided first game stays two-step. Daily, vs-computer and online games are fluid. Tests: `tests/fluid.test.js` (11, 10 seen failing on the old engine), `tests/fluid-ui.mjs` (seen failing on the old code). Ladder, 400 games per pairing, classic → fluid: Hard>Easy 98.5 → 98.5%, Hard>Medium 72.8 → 73.0%, Medium>Easy 77.4 → 77.4%, Hard at 4 players 51.5 → 53.0%, at 3 players 57.5 → 57.0%.
 
+## Evolution: Climate (version `climate`, checked 2026-11-09)
+Sources: **[CR]** the official [Climate rulebook PDF](https://cdn.shopify.com/s/files/1/0283/4324/files/Evolution-Climate-Rules-web.pdf); **[TTS]** card faces from Tabletop Simulator mods 937109867 and 2425085506 (two sources agree on every event); the full write-up and card table are in `docs/expansions-research.md` and `docs/expansions-data.json`. Code: `js/climate.js` (rules), small commented hooks in `js/engine.js`, cards 1000–1085 at the end of `js/cards.js`. All tests are in `tests/climate.test.js` (32); 30 of them failed on the pre-Climate code, and a 9-mutation run of `climate.js` was caught every time.
+- **Deck** [CR, TTS]: base deck minus Ambush, Burrowing, Defensive Herding and Carnivore (91 cards) + the 86 Climate cards = 177. Every card has 0–2 suns or snowflakes. Test "deck: 177 cards…", "deck: exact food + icons…".
+- **Setup** [CR]: set aside cards by players (2: half the deck, 3: 60, 4: 30, 5–6: none); max traits 3 at 2 players, else 4; deal 4 + 1 per species. Test "setup: set-aside cards…".
+- **Deck runs out** [CR]: the set-aside cards become the deck (not the discards) and the round is the last. Test "deck runs out…".
+- **Swap** [CR]: after playing, a player may put cards under the deck and draw as many (at most the deck size). Base games refuse it. Test "cycling…".
+- **Marker** [CR]: after the reveal, more suns → 1 zone warmer, more snowflakes → 1 colder, a tie stays; it stops at the ends. Test "marker…".
+- **Zones** [CR]: 9 zones, each with the body sizes it hits, the population loss and a leaf of food for 2–3 or 4–6 players. A negative leaf removes food, never below 0. Tests "heat loss…", "cold loss…", "cold zone…", "plant food = food cards + the zone leaf…".
+- **Protections** [CR, TTS]: Burrowing blocks 1 heat; Cooling Frills 3 heat; Heavy Fur 4 cold and loses 1 more to heat; Defensive Herding, Hibernation and Migratory block 1 cold each, and they stack. Extinction from climate loss draws cards as usual. Tests "heat loss…", "cold loss…".
+- **Events** [CR, TTS]: 30 cards (cold and hot decks shuffled apart), 1 cold + 1 hot face up under their zones. When the marker lands on an event's zone it replaces that zone's effect for the round, then goes to the bottom of its deck and is replaced; the new card can't trigger until next round; at most 1 event a round. Special cards: Meteorite (no positive plant food for the rest of the game), Volcanic Eruption (moves the marker after feeding), Glacial Thaw (3 extra suns next round), Desertification (every species −1 body, not below 1; no positive food), Wildfire (species without Burrowing lose 1; the round's food waits for the next deal). Tests "setup: one cold and one hot event…" and every "event: …" test.
+- **New traits** [CR, TTS]: Hibernation (up to 2 unfed population are not hungry and don't starve), Migratory (after feeding, with the hole empty, takes 2 plant food from the bank), Mud Wallowing (the attacker discards a card per attack), Cooling Frills (+2 size against attacks, not more meat), Heavy Fur (cold protection), Nocturnal (a free feeding before each of your feeding turns when no Carnivore could attack it). Changed: Ambush ignores one defending trait for free. Tests named after each trait.
+- **Simplifications in this build** (reasoned; listed for Tim):
+  - Nocturnal is applied automatically (no choice of which species; the threatening Carnivore is the biggest rival, no cards spent).
+  - A Mud Wallowing attack is never forced on a hungry Carnivore that can't pay.
+  - Heavy Fur's extra heat loss applies only in the hot zones (6–8).
+  - Desertification also caps Fat Tissue; Wildfire also holds back a negative total.
+  - Migratory with Foraging can take 3.
+  - At 2 players the set-aside pile is floor(177/2) = 88.
+  - Events are on by default; `events:false` is the no-events variant [CR].
+  - Computers never Swap. The forecast in the watering hole uses only the current zone.
+  - The attack log may name "Intelligence" for Ambush's free ignore.
+- **Computers**: 150 seeded Climate games at 2–6 players end with every move legal and all cards accounted for (test "computers: 150…"). Ladder, 400 games per pairing (`node tools/climate-sim.js 400 climate`): Hard>Easy 99.0%, Hard>Medium 69.0%, Medium>Easy 77.3%, Hard vs three Mediums 52.0% (fair share 25%). Base games are unchanged (300 seeded games identical to the previous engine).
+
 ## Simplifications
 - **Scavenger order:** Scavengers take meat clockwise from the attacker. The food bank is unlimited, so the order can't change a result (reasoned).
 
@@ -95,9 +118,5 @@ Status: every number below is asserted by `tests/engine.test.js`.
 - **Later printings:** whether any food number changed after 2017. The Climate reprints use different numbers, so this site does not mix in Climate cards.
 
 ## Parked
-- **Flight, Climate and Oceans**, each with its reason:
-  - Flight adds new boards and 47 cards.
-  - Climate is a standalone game with 177 cards and a climate track.
-  - Oceans is a different game.
-  - None of the three has a full public card list we could cross-check, so building one would mean guessing numbers.
+- ~~**Flight, Climate and Oceans**: no public card lists.~~ Superseded 2026-11-09: card lists were found (`docs/expansions-research.md`); Climate is built (section above). Oceans stays parked (a different game).
 - **1st printing (2014)**: higher numbers on Long Neck, Defensive Herding and Carnivore, Hard Shell +3, and Pack Hunting +3. Only three traits' values are published (thread 1362641), so a full 1st-printing deck can't be checked.

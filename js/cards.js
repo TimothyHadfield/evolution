@@ -53,6 +53,55 @@
   const DECK = [];
   for (const t of TRAITS) for (const f of FOOD[t]) DECK.push({ id: DECK.length, trait: t, food: f });
   // traits a Carnivore may switch off with Intelligence (the ones that stop or punish an attack)
-  const DEFENSES = ['Burrowing', 'Climbing', 'Defensive Herding', 'Hard Shell', 'Horns', 'Symbiosis', 'Warning Call'];
-  return { FOOD, TEXT, TRAITS, DECK, DEFENSES };
+  // (Cooling Frills and Mud Wallowing are Climate cards; they never appear in a base game)
+  const DEFENSES = ['Burrowing', 'Climbing', 'Defensive Herding', 'Hard Shell', 'Horns', 'Symbiosis', 'Warning Call', 'Cooling Frills', 'Mud Wallowing'];
+
+  // ================================================================== EVOLUTION: CLIMATE (separate block)
+  // Climate standalone / Conversion Pack (2016). Sources: docs/expansions-research.md + docs/rules-check.md
+  // ("Climate"). Deck = the base deck minus every Ambush, Burrowing, Defensive Herding and Carnivore card
+  // (91 cards kept, unchanged, no icons) + the 86 cards below. Ids start at 1000 so they never clash with
+  // other expansions' ids. Each card: food number + climate icons (sun = pushes warmer, snow = colder).
+  const CLIMATE_FOOD = { // trait -> [[food, 'S'|'C', icons], ...] one entry per copy (mods 937 + 2425 agree)
+    'Ambush': [[-3, 'S', 3], [-2, 'C', 2], [3, 'S', 2], [2, 'C', 1], [0, 'C', 1], [1, 'S', 1], [-1, 'S', 1]],
+    'Burrowing': [[5, 'S', 3], [4, 'C', 2], [1, 'S', 2], [2, 'C', 1], [3, 'C', 1], [3, 'S', 1], [4, 'S', 1]],
+    'Defensive Herding': [[2, 'C', 3], [8, 'C', 2], [3, 'S', 2], [4, 'C', 1], [6, 'C', 1], [5, 'S', 1], [7, 'S', 1]],
+    'Carnivore': [[3, 'S', 4], [2, 'S', 4], [3, 'C', 4], [4, 'C', 4], [2, 'C', 3], [1, 'S', 2], [6, 'C', 2], [4, 'C', 1], [4, 'C', 1], [4, 'C', 1],
+      [5, 'C', 1], [5, 'C', 1], [6, 'C', 1], [3, 'S', 1], [3, 'S', 1], [3, 'S', 1], [2, 'S', 1], [2, 'S', 1], [2, 'S', 1], [1, 'S', 1], [1, 'S', 1], [0, 'S', 1], [0, 'S', 1]],
+    'Cooling Frills': [[-4, 'S', 3], [-2, 'C', 2], [9, 'S', 2], [7, 'C', 1], [2, 'C', 1], [0, 'S', 1], [5, 'S', 1]],
+    'Heavy Fur': [[10, 'C', 3], [-5, 'C', 2], [8, 'S', 2], [6, 'C', 1], [-1, 'C', 1], [-3, 'S', 1], [1, 'S', 1]],
+    'Hibernation': [[-3, 'C', 3], [8, 'C', 2], [-1, 'S', 2], [1, 'C', 1], [4, 'C', 1], [3, 'S', 1], [6, 'S', 1]],
+    'Migratory': [[5, 'C', 3], [0, 'C', 2], [4, 'S', 2], [2, 'C', 1], [3, 'C', 1], [1, 'S', 1], [2, 'S', 1]],
+    'Mud Wallowing': [[7, 'S', 3], [5, 'C', 2], [-2, 'S', 2], [0, 'C', 1], [3, 'C', 1], [3, 'S', 1], [2, 'S', 1]],
+    'Nocturnal': [[-1, 'S', 3], [1, 'C', 2], [6, 'S', 2], [4, 'C', 1], [2, 'C', 1], [2, 'S', 1], [3, 'S', 1]],
+  };
+  const CLIMATE_OUT = ['Ambush', 'Burrowing', 'Defensive Herding', 'Carnivore']; // base cards replaced by the kit
+  const CLIMATE_DECK = [];
+  for (const t of Object.keys(CLIMATE_FOOD)) for (const [f, k, n] of CLIMATE_FOOD[t])
+    CLIMATE_DECK.push({ id: 1000 + CLIMATE_DECK.length, trait: t, food: f, sun: k === 'S' ? n : 0, snow: k === 'C' ? n : 0 });
+  // our own words for the new traits, and for the base traits whose Climate cards add a climate line
+  const CLIMATE_TEXT = {
+    'Cooling Frills': 'Counts as 2 bigger when a Carnivore checks if it can attack. Blocks 3 heat loss.',
+    'Heavy Fur': 'Blocks 4 cold loss. In Tropical, Hot and Scorching it loses 1 more to heat.',
+    'Hibernation': 'Up to 2 unfed population don’t count as hungry and don’t starve. Blocks 1 cold loss.',
+    'Migratory': 'After all feeding, if the watering hole is empty, takes 2 plant food from the bank. Blocks 1 heat and 1 cold loss.',
+    'Mud Wallowing': 'A Carnivore must discard a card from its owner’s hand before each attack on it. Blocks 1 heat loss.',
+    'Nocturnal': 'Before each of your feeding turns, feeds once for free if no Carnivore could attack it. Blocks 1 heat loss.',
+    'Ambush': 'When this Carnivore attacks, Warning Call does not stop it. Against a Migratory species it also ignores one defending trait.',
+    'Burrowing': 'Safe from attacks while it isn’t hungry. Blocks 1 heat and 1 cold loss.',
+    'Defensive Herding': 'Only a Carnivore with a bigger population can attack it. Blocks 1 cold loss.',
+  };
+  const CLIMATE_TRAITS = ['Cooling Frills', 'Heavy Fur', 'Hibernation', 'Migratory', 'Mud Wallowing', 'Nocturnal'];
+
+  // every card by id (base 0-128 and every expansion card); look cards up here, not in DECK
+  const CARD = {};
+  for (const c of DECK) CARD[c.id] = c;
+  for (const c of CLIMATE_DECK) CARD[c.id] = c;
+  // the card ids a game shuffles: 'climate' = base minus the replaced traits + the Climate cards
+  function deckIds(version) {
+    if (version === 'climate') return DECK.filter(c => CLIMATE_OUT.indexOf(c.trait) < 0).map(c => c.id).concat(CLIMATE_DECK.map(c => c.id));
+    return DECK.map(c => c.id);
+  }
+  // one trait's food numbers in a game's deck (for "N cards in the deck")
+  function foodsOf(t, version) { return deckIds(version).map(id => CARD[id]).filter(c => c.trait === t).map(c => c.food); }
+  return { FOOD, TEXT, TRAITS, DECK, DEFENSES, CARD, deckIds, foodsOf, CLIMATE_DECK, CLIMATE_TEXT, CLIMATE_TRAITS, CLIMATE_OUT };
 });

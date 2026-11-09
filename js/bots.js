@@ -6,13 +6,43 @@
    bots only look at what their seat could see at a real table (no hands, no face-down cards,
    no deck order), except where noted for the shared food math (the deck's food totals are public). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'), require('./engine.js'));
-  else root.EvoBots = factory(root.EvoCards, root.EvoEngine);
-})(typeof self !== 'undefined' ? self : this, function (Cards, E) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'), require('./engine.js'), require('./climate.js'));
+  else root.EvoBots = factory(root.EvoCards, root.EvoEngine, root.EvoClimate);
+})(typeof self !== 'undefined' ? self : this, function (Cards, E, CL) {
   'use strict';
   const { DECK } = Cards;
-  const T = id => DECK[id].trait;
+  const CARD = Cards.CARD;
+  const T = id => CARD[id].trait;
   const has = E.has;
+
+  // ------------------------------------------------------------------ Climate: what the weather may cost
+  // expected heat/cold loss of species sp (its face-down traits count: it's my own plan) at body size `body`
+  // next reveal: the marker stays (0.4) or moves one zone either way (0.3 each). 0 outside Climate games.
+  function climateLoss(s, sp, body, extra) {
+    if (!s.climate || !CL) return 0;
+    const z = s.climate.zone, n = s.players.length;
+    const x = { body: body == null ? sp.body : body, traits: sp.traits.concat(sp.hidden || []).filter(id => id >= 0).concat(extra != null ? [extra] : []), hidden: [] };
+    let v = 0;
+    for (const [zz, w] of [[z, 0.4], [z - 1, 0.3], [z + 1, 0.3]]) {
+      const k = Math.max(0, Math.min(CL.ZONES.length - 1, zz));
+      v += w * Math.min(sp.pop, CL.lossOf(x, CL.zoneEffect(n, k), k));
+    }
+    return v;
+  }
+  // > 0: a warmer climate costs player p more population than a colder one
+  function warmthCost(s, p) {
+    if (!s.climate || !CL) return 0;
+    const z = s.climate.zone, n = s.players.length, L = CL.ZONES.length - 1;
+    let d = 0;
+    for (const sp of s.players[p].species) {
+      const x = { body: sp.body, traits: sp.traits.concat(sp.hidden).filter(id => id >= 0), hidden: [] };
+      const at = k => Math.min(sp.pop, CL.lossOf(x, CL.zoneEffect(n, Math.max(0, Math.min(L, k))), Math.max(0, Math.min(L, k))));
+      d += at(z + 1) - at(z - 1);
+      // plant food: warmer zones (up to Tropical) feed plant eaters more
+      if (!E.isCarn(sp)) d -= 0.15 * (CL.leafOf(s, Math.min(L, z + 1)) - CL.leafOf(s, Math.max(0, z - 1))) / Math.max(1, n);
+    }
+    return d;
+  }
 
   // a tiny private random stream so bots never touch the game's seed
   function brng(s, p, salt) {
@@ -23,6 +53,10 @@
 
   // ------------------------------------------------------------------ table reading
   const MEAN_FOOD = DECK.reduce((a, c) => a + c.food, 0) / DECK.length;
+  const CL_IDS = Cards.deckIds('climate');
+  const MEAN_CLIMATE = CL_IDS.reduce((a, id) => a + CARD[id].food, 0) / CL_IDS.length;
+  // plant food a round adds besides the hole: the food cards (+ the climate zone's leaf number)
+  const roundPlants = s => s.players.length * (s.climate ? MEAN_CLIMATE : MEAN_FOOD) + (s.climate && CL ? CL.leafOf(s, s.climate.zone) : 0);
   function carnivores(s, except) {
     const out = [];
     s.players.forEach((pl, p) => pl.species.forEach((sp, i) => { if (p !== except && E.isCarn(sp)) out.push({ p, i, sp }); }));
@@ -38,7 +72,7 @@
   function plantOutlook(s) {
     let mouths = 0;
     s.players.forEach(pl => pl.species.forEach(sp => { if (!E.isCarn(sp)) mouths += sp.pop; }));
-    const supply = s.hole + s.players.length * MEAN_FOOD;
+    const supply = s.hole + roundPlants(s);
     return mouths ? supply / mouths : 3;
   }
 
@@ -80,6 +114,18 @@
       case 'Defensive Herding': v += thr * 1.0; break;
       case 'Symbiosis': v += row[i + 1] && row[i + 1].body > sp.body ? thr * 1.2 : 0; break;
       case 'Warning Call': v += ((row[i - 1] ? threat(s, p, i - 1) : 0) + (row[i + 1] ? threat(s, p, i + 1) : 0)) * 0.9; break;
+      // Climate traits (their heat/cold protection is added below)
+      case 'Cooling Frills': v += thr * 0.9; break;
+      case 'Mud Wallowing': v += thr * 0.6; break;
+      case 'Hibernation': v += carn ? 0.3 : (out < 1.3 ? 0.5 : 0.2) + 0.25 * Math.min(2, sp.pop - 1); break;
+      case 'Migratory': v += carn ? -0.5 : 0.6; break;
+      case 'Nocturnal': v += thr ? 0.1 : carn ? 0.3 : 0.8; break;
+      case 'Heavy Fur': break;
+    }
+    // Climate: population the trait would save from heat and cold next round
+    if (s.climate && CL && CL.PROTECT[t]) {
+      const id = Cards.CLIMATE_DECK.find(c => c.trait === t).id;
+      v += (lv === 'hard' ? 1.2 : 0.8) * (climateLoss(s, sp) - climateLoss(s, sp, null, id));
     }
     return v;
   }
@@ -93,12 +139,15 @@
     const herb = pl.species.filter(sp => !E.isCarn(sp)).reduce((a, sp) => a + sp.pop, 0);
     const carnPop = pl.species.filter(sp => E.isCarn(sp)).reduce((a, sp) => a + sp.pop, 0);
     let best = null, bv = Infinity;
+    const warm = s.climate ? warmthCost(s, p) : 0;
     for (const id of pl.hand) {
       const t = T(id);
       let keep = 0.6;
       pl.species.forEach((sp, i) => { if (!E.has(sp, t)) keep = Math.max(keep, traitValue(s, p, sp, i, t, lv)); });
-      const f = DECK[id].food;
-      const v = keep - (lv === 'hard' ? 0.25 : 0.15) * f * (herb >= carnPop ? 1 : -0.6);
+      const f = CARD[id].food;
+      let v = keep - (lv === 'hard' ? 0.25 : 0.15) * f * (herb >= carnPop ? 1 : -0.6);
+      // Climate: a sun pushes the climate warmer, a snowflake colder; prefer the push that hurts me less
+      if (s.climate) v += (lv === 'hard' ? 0.35 : 0.2) * ((CARD[id].sun || 0) - (CARD[id].snow || 0)) * warm;
       if (v < bv) { bv = v; best = id; }
     }
     return { t: 'food', card: best };
@@ -153,6 +202,8 @@
               if (carn) { vb += prey ? 0.7 : 1.6; s.players.forEach((pl2, q) => { if (q !== p) pl2.species.forEach(x => { if (x.body === sp.body) vb += 0.45; }); }); }
               if (has(sp, 'Fat Tissue')) vb += 0.2;
             } else vb += threat(s, p, i) ? 0.7 : 0;
+            // Climate: a body size that the weather hits less (or more)
+            if (s.climate) vb += (lv === 'hard' ? 1.1 : 0.6) * (climateLoss(s, sp) - climateLoss(s, sp, sp.body + 1));
             if (vb > bv) { bv = vb; best = { t: 'body', card, s: sp.id }; }
           }
           // trait
@@ -218,7 +269,9 @@
     // Intelligence needs cards to discard: the ones worth least
     const fill = o => {
       if (o.t === 'intel') return { t: 'intel', s: o.s, card: worstCards(s, p, 1)[0] };
-      if (o.t === 'attack') return o.ignore.length ? { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, cards: worstCards(s, p, o.ignore.length) } : { t: 'attack', s: o.s, target: o.target };
+      // (Mud Wallowing, Climate: one more card)
+      const nc = o.t === 'attack' ? o.ignore.length + (o.mud || 0) : 0;
+      if (o.t === 'attack') return nc ? { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, cards: worstCards(s, p, nc) } : { t: 'attack', s: o.s, target: o.target };
       return { t: o.t, s: o.s };
     };
     if (lv === 'easy') {
@@ -234,7 +287,7 @@
         for (const o of eats) { const sp = E.findSp(s, o.s).sp; const n = sp.pop - sp.food; if (n > bn) { bn = n; b = o; } }
         if (bn > 0 || !passOk) return fill(b);
       }
-      const atks = opts.filter(o => o.t === 'attack' && !o.ignore.length && E.findSp(s, o.target).p !== p);
+      const atks = opts.filter(o => o.t === 'attack' && !o.ignore.length && !o.mud && E.findSp(s, o.target).p !== p);
       if (atks.length) {
         let b = atks[0], bb = -1;
         for (const o of atks) { const tb = E.findSp(s, o.target).sp.body; if (tb > bb) { bb = tb; b = o; } }
@@ -254,6 +307,7 @@
       let v = valueAfter(ns, p);
       if (o.t === 'intel') v -= 0.6; // a card spent
       if (o.ignore && o.ignore.length) v -= 0.6 * o.ignore.length;
+      if (o.cards && o.cards.length > ((o.ignore && o.ignore.length) || 0)) v -= 0.6; // a card for Mud Wallowing
       if (v > bv) { bv = v; best = o; }
     }
     return best || fill(opts.find(o => o.must) || opts[0]);
@@ -267,7 +321,7 @@
   function rate(s, p, o) {
     let ns;
     try { ns = E.applyRaw(s, p, o); } catch (e) { return -Infinity; }
-    return valueAfter(ns, p) - (o.t === 'intel' ? 0.6 : 0) - (o.ignore && o.ignore.length ? 0.6 * o.ignore.length : 0);
+    return valueAfter(ns, p) - (o.t === 'intel' ? 0.6 : 0) - (o.ignore && o.ignore.length ? 0.6 * o.ignore.length : 0) - (o.cards && o.cards.length > ((o.ignore && o.ignore.length) || 0) ? 0.6 : 0);
   }
 
   // ------------------------------------------------------------------ entry point
@@ -279,5 +333,5 @@
     return chooseFeed(s, p, lv);
   }
   E.setBot((s, p) => decide(s, p, s.players[p].bot));
-  return { decide, rate, traitValue, threat, plantOutlook, MEAN_FOOD };
+  return { decide, rate, traitValue, threat, plantOutlook, MEAN_FOOD, climateLoss, warmthCost };
 });

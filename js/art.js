@@ -11,6 +11,9 @@
     Burrowing: 'defend', Climbing: 'defend', 'Defensive Herding': 'defend', 'Hard Shell': 'defend',
     Horns: 'defend', Symbiosis: 'defend', 'Warning Call': 'defend',
     Cooperation: 'feed', 'Fat Tissue': 'feed', Fertile: 'feed', Foraging: 'feed', 'Long Neck': 'feed', Scavenger: 'feed',
+    // Evolution: Climate
+    'Cooling Frills': 'defend', 'Mud Wallowing': 'defend', 'Heavy Fur': 'defend',
+    Hibernation: 'feed', Migratory: 'feed', Nocturnal: 'feed',
   };
   const INK = { attack: '#8a2f22', defend: '#24507f', feed: '#2f6a2b' };
   const PAPER = { attack: '#f6d9cf', defend: '#d6e4f3', feed: '#dcebcf' };
@@ -35,7 +38,22 @@
     'Long Neck': '<path d="M30 44V20c0-6-2-10-6-12h-8l-4 4 4 3h6v29"/><circle cx="17" cy="11" r="1.5" class="f"/><path d="M14 44h22"/>',
     Scavenger: '<path d="M14 34l20-20"/><circle cx="11" cy="33" r="4"/><circle cx="15" cy="37" r="4"/><circle cx="33" cy="11" r="4"/><circle cx="37" cy="15" r="4"/>',
     Intelligence: '<path d="M24 8c-8 0-13 6-13 13c0 5 3 8 5 10v6h16v-6c2-2 5-5 5-10c0-7-5-13-13-13z"/><path d="M18 42h12M20 20c2-2 6-2 8 0M24 20v10"/>',
+    // Evolution: Climate. Migratory travels away from the watering hole to the bank: arrows → (its direction)
+    'Cooling Frills': '<path d="M6 32a18 18 0 0 1 36 0"/><path d="M24 14V6M15 17l-5-6M33 17l5-6M10 25l-7-3M38 25l7-3"/><circle cx="24" cy="34" r="6" class="f"/>',
+    'Heavy Fur': '<path d="M6 14c3-4 6 4 9 0s6 4 9 0 6 4 9 0 6 4 9 0"/><path d="M6 25c3-4 6 4 9 0s6 4 9 0 6 4 9 0 6 4 9 0"/><path d="M6 36c3-4 6 4 9 0s6 4 9 0 6 4 9 0 6 4 9 0"/>',
+    Hibernation: '<path d="M4 42c0-22 40-22 40 0"/><ellipse cx="24" cy="37" rx="10" ry="5" class="f"/><path d="M30 8h7l-7 8h7M38 4h4l-4 5h4"/>',
+    Migratory: '<path d="M6 16l7 8-7 8M19 16l7 8-7 8M32 16l7 8-7 8"/><path d="M6 40h36"/>',
+    'Mud Wallowing': '<path d="M5 34c5-5 9 2 14-2s9 2 14-2 7 1 10 0"/><ellipse cx="24" cy="40" rx="19" ry="4"/><circle cx="15" cy="20" r="3" class="f"/><circle cx="27" cy="13" r="2.6" class="f"/><circle cx="34" cy="23" r="2.2" class="f"/>',
+    Nocturnal: '<path d="M28 8a16 16 0 1 0 12 26A13 13 0 0 1 28 8z"/><circle cx="10" cy="10" r="1.8" class="f"/><circle cx="17" cy="5" r="1.4" class="f"/><circle cx="40" cy="12" r="1.8" class="f"/>',
   };
+  // Climate card icons: suns push the climate warmer, snowflakes colder (n = how many on the card)
+  const SUN = '#d98a1c', SNOW = '#3f86c6';
+  function clim(kind, size) {
+    const s = size || 12;
+    return kind === 'sun' ?
+      '<svg class="cli sun" width="' + s + '" height="' + s + '" viewBox="0 0 20 20" aria-hidden="true" fill="' + SUN + '" stroke="' + SUN + '" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="4.2"/><path d="M10 1.5v2.5M10 16v2.5M1.5 10H4M16 10h2.5M4 4l1.8 1.8M14.2 14.2 16 16M16 4l-1.8 1.8M5.8 14.2 4 16"/></svg>' :
+      '<svg class="cli snow" width="' + s + '" height="' + s + '" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="' + SNOW + '" stroke-width="1.9" stroke-linecap="round"><path d="M10 1.5v17M2.6 5.8l14.8 8.4M2.6 14.2l14.8-8.4M7.5 2.8 10 5l2.5-2.2M7.5 17.2 10 15l2.5 2.2"/></svg>';
+  }
   function icon(trait, o) {
     o = o || {};
     const fam = FAMILY[trait] || 'feed';
@@ -67,5 +85,5 @@
     const col = kind === 'body' ? '#f0b354' : '#6ea8fe';
     return '<span class="dial d-' + kind + '" style="--c:' + col + '"><b>' + n + '</b></span>';
   }
-  return { icon, food, pond, dial, FAMILY, INK, PAPER };
+  return { icon, food, pond, dial, clim, FAMILY, INK, PAPER };
 });

@@ -365,6 +365,30 @@
     background: linear-gradient(#f6f0de, #ece2c6); box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.3); transform: rotate(-2deg); }
   .hole .odds b { color: #1d150a; }
   .hole .odds .muted { color: #7d6a48; }
+  /* Evolution: Climate: the climate board in a strip under the watering hole (tap = climate sheet) */
+  .hole.has-cl { flex-wrap: wrap; row-gap: 3px; }
+  .hole .clim { order: 9; flex: 1 0 100%; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 3px 7px; cursor: pointer; border-radius: 8px;
+    background: rgba(14,10,6,.45); border: 1px solid rgba(255,236,200,.16); font-size: 11px; line-height: 1.2; color: #f3efe4; }
+  .clim .ztrack { display: flex; gap: 1px; flex: none; align-items: center; }
+  .clim .z { position: relative; display: block; width: 12px; height: 9px; border-radius: 2px; }
+  .clim .z.on { height: 15px; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,.6); }
+  .clim .z .mk { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+  .clim .z .evm { position: absolute; left: 50%; bottom: -6px; margin-left: -3px; border: 3px solid transparent; border-bottom: 4px solid; border-top: 0; }
+  .clim .z .evm.cold { color: #8fc3ff; } .clim .z .evm.hot { color: #ffb36a; }
+  .z0 { background: #3d6fb8; } .z1 { background: #5a8fd0; } .z2 { background: #82b4e0; } .z3 { background: #a9cfd8; } .z4 { background: #9cc58a; }
+  .z5 { background: #d6c36a; } .z6 { background: #e0a24c; } .z7 { background: #d9772f; } .z8 { background: #c0432a; }
+  .clim .zn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+  .clim .cevs { display: flex; gap: 4px; min-width: 0; overflow: hidden; margin-left: auto; flex: 0 1 auto; }
+  .clim .cev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; padding: 0 5px; border-radius: 4px; font-size: 10px; line-height: 15px; border: 1px solid; }
+  .clim .cev.cold { color: #bcdcff; border-color: rgba(143,195,255,.6); } .clim .cev.hot { color: #ffd0a0; border-color: rgba(255,179,106,.6); }
+  @media (max-width: 899px) { .clim .cev .cz { display: none; } .clim .cevs { flex: 0 3 auto; } .clim .zn { flex: 0 1 auto; } }
+  .zt tr.on td { background: rgba(110,168,254,.14); font-weight: 700; }
+  .zsw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; }
+  /* Climate cards: their suns / snowflakes stacked just above the food leaf (the part of a held card that stays in view) */
+  .tc .ci { position: absolute; right: 5%; bottom: calc(var(--card-w) * .31); display: flex; flex-direction: column; gap: 1px; pointer-events: none; }
+  .tc .ci .cli { width: calc(var(--card-w) * .15); height: calc(var(--card-w) * .15); filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff); }
+  .tc.big .ci { flex-direction: row; }
+  .tc.big .ci .cli { width: 18px; height: 18px; }
   .mine { grid-area: mine; display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 6px; align-items: stretch; min-width: 0; min-height: -webkit-max-content; min-height: max-content; }
   .mine .mylab { display: none; }
   /* my hand, held as a fan (css/table.css .tbl-fan; js/table.js lays it out) */
@@ -613,14 +637,15 @@
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/cards.js?v=7"></script>
-<script src="js/engine.js?v=9"></script>
-<script src="js/bots.js?v=9"></script>
-<script src="js/odds.js?v=7"></script>
+<script src="js/cards.js?v=8"></script>
+<script src="js/climate.js?v=1"></script>
+<script src="js/engine.js?v=10"></script>
+<script src="js/bots.js?v=10"></script>
+<script src="js/odds.js?v=8"></script>
 <script src="js/lab-data.js?v=7"></script>
 <script src="js/strength-data.js?v=7"></script>
-<script src="js/online-game.js?v=8"></script>
-<script src="js/art.js?v=8"></script>
+<script src="js/online-game.js?v=9"></script>
+<script src="js/art.js?v=9"></script>
 <script src="js/fx.js?v=7"></script>
 <script src="js/table.js?v=7"></script>
 <script src="js/game-fx.js?v=11"></script>
@@ -628,7 +653,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="16"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/pwa.js?v=13" data-version="17"></script>
+<script src="js/app.js?v=16"></script>
 </body>
 </html>

@@ -4,7 +4,13 @@
 (function () {
   'use strict';
   const VERSION = '1.2 · 2026-10-20';
-  const { DECK, TRAITS, TEXT, FOOD } = EvoCards;
+  const { DECK, TRAITS, TEXT, FOOD, CARD } = EvoCards;
+  // Evolution: Climate (js/climate.js). For now a game starts as Climate only from the address ?climate
+  // (the version picker comes with the expansions setup screen). VER = the version of the game on screen.
+  const CL = window.EvoClimate || null;
+  const CLIMATE_FLAG = !!CL && /[?&]climate(=|&|$)/.test(location.search);
+  let VER = null;
+  const tText = t => (VER === 'climate' && EvoCards.CLIMATE_TEXT[t]) || TEXT[t] || '';
   const E = EvoEngine, B = EvoBots, O = EvoOdds, A = EvoArt;
   const KEY = 'evolution:v1';
   let ME = 0;
@@ -14,7 +20,7 @@
   const LEVELS = ['easy', 'medium', 'hard'];
   const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
   const cut = (s, n) => Array.from(s).slice(0, n).join(''); // never splits an emoji in half
-  const T = id => DECK[id].trait;
+  const T = id => CARD[id].trait;
   const STRENGTH = window.EvoStrength || null;
 
   // ------------------------------------------------------------------ sound & effects (js/fx.js + js/game-fx.js)
@@ -111,7 +117,7 @@
         const vMine = B.rate(s, ME, action), vBest = B.rate(s, ME, best);
         return { r: s.round, k: 'feed', mine: describe(s, action), best: describe(s, best), lost: Math.max(0, vBest - vMine) };
       }
-      const foodNote = (mine, best) => ({ r: s.round, k: 'food', mine: 'Food card: ' + T(mine) + ' (' + fmtFood(DECK[mine].food) + ')', best: 'Food card: ' + T(best) + ' (' + fmtFood(DECK[best].food) + ')', same: best === mine || DECK[best].trait === DECK[mine].trait && DECK[best].food === DECK[mine].food });
+      const foodNote = (mine, best) => ({ r: s.round, k: 'food', mine: 'Food card: ' + T(mine) + ' (' + fmtFood(CARD[mine].food) + ')', best: 'Food card: ' + T(best) + ' (' + fmtFood(CARD[best].food) + ')', same: best === mine || CARD[best].trait === CARD[mine].trait && CARD[best].food === CARD[mine].food });
       if (s.phase === 'food' && action.t === 'food') return foodNote(action.card, B.decide(s, ME, 'hard').card);
       if (s.phase === 'play' && action.t === 'play') {
         const play = { r: s.round, k: 'play', mine: action.moves.length ? action.moves.map(m => describeMove(s, m)).join(' · ') : 'Played no cards' };
@@ -224,7 +230,7 @@
       const room = await loadOnline();
       if (k === 'create') {
         const seats = ['human'].concat(new Array(store.settings.opps).fill('empty'));
-        r = await room.createRoom({ name, seats, options: { level: store.settings.level, quick: store.settings.quick } });
+        r = await room.createRoom({ name, seats, options: Object.assign({ level: store.settings.level, quick: store.settings.quick }, CLIMATE_FLAG ? { version: 'climate' } : {}) });
       } else r = await room.joinRoom(code, name);
     } catch (e) { r = { ok: false, message: 'Online play couldn’t load. Check your internet.' }; }
     net.connecting = false;
@@ -235,8 +241,8 @@
   // ------------------------------------------------------------------ ui state
   // fluid play (food card placed in the play turn): food = my planned food card, foodAt = how many planned plays
   // came before it (so Undo takes back in order), grow = a card put on the discard pile, waiting for Body / Pop / +
-  const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], food: null, foodAt: 0, grow: null, feedSel: null, target: null, needCard: null, prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
-  function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.food = null; ui.foodAt = 0; ui.grow = null; ui.feedSel = null; ui.target = null; ui.needCard = null; }
+  const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], food: null, foodAt: 0, grow: null, feedSel: null, target: null, needCard: null, cycle: [], prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
+  function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.food = null; ui.foodAt = 0; ui.grow = null; ui.feedSel = null; ui.target = null; ui.needCard = null; ui.cycle = []; }
   function restoreDraft() {
     try {
       const g = store.game, d = g && g.draft;
@@ -330,14 +336,21 @@
   function cardFace(id, o) {
     o = o || {};
     if (id < 0) return '<div class="tc tbl-card tbl-back evo-back ' + (o.cls || '') + '"' + (o.style ? ' style="' + o.style + '"' : '') + (o.attr || '') + '></div>';
-    const c = DECK[id];
+    const c = CARD[id];
     return '<div class="tc tbl-card ' + (o.cls || '') + '" style="' + famStyle(c.trait) + (o.delay ? ';animation-delay:' + o.delay + 'ms' : '') + (o.style ? ';' + o.style : '') + '"' + (o.attr || '') + '>' +
-      faceInner(c.trait, c.food, o.big) + '</div>';
+      faceInner(c.trait, c.food, o.big, c) + '</div>';
   }
   // what is printed on a trait card: name across the top, the drawing, the rules text (big cards), the food leaf bottom right
-  function faceInner(t, food, big) {
-    return '<span class="tn">' + tName(t) + '</span><span class="art" data-f="' + (A.FAMILY[t] || 'feed') + '">' + A.icon(t) + '</span>' + (big ? '<span class="tx">' + esc(TEXT[t] || '') + '</span>' : '') +
-      (food != null ? '<span class="fd' + (food < 0 ? ' neg' : '') + '">' + fmtFood(food) + '</span>' : '');
+  // (Climate cards: their suns or snowflakes bottom left)
+  function faceInner(t, food, big, c) {
+    return '<span class="tn">' + tName(t) + '</span><span class="art" data-f="' + (A.FAMILY[t] || 'feed') + '">' + A.icon(t) + '</span>' + (big ? '<span class="tx">' + esc(tText(t)) + '</span>' : '') +
+      (food != null ? '<span class="fd' + (food < 0 ? ' neg' : '') + '">' + fmtFood(food) + '</span>' : '') + climIcons(c);
+  }
+  function climIcons(c) {
+    const n = c && (c.sun || c.snow);
+    if (!n || !A.clim) return '';
+    const k = c.sun ? 'sun' : 'snow';
+    return '<span class="ci" aria-label="' + n + ' ' + (c.sun ? 'sun' : 'snowflake') + (n > 1 ? 's' : '') + '">' + A.clim(k).repeat(n) + '</span>';
   }
   // turn a face-down card over in 3-D: it turns edge-on, the face is swapped in, it turns back flat.
   // (no backface trick, so it looks the same in every browser)
@@ -356,8 +369,8 @@
       };
     }, delay);
   }
-  function bigTrait(t, foodVal) {
-    return '<div class="tc tbl-card big" style="' + famStyle(t) + '">' + faceInner(t, foodVal, true) + '</div>';
+  function bigTrait(t, foodVal, c) {
+    return '<div class="tc tbl-card big" style="' + famStyle(t) + '">' + faceInner(t, foodVal, true, c) + '</div>';
   }
 
   // ------------------------------------------------------------------ tabs + back button
@@ -533,7 +546,7 @@
     } else {
       const players = [{ name: st.name || 'You', bot: null }];
       for (let i = 0; i < st.opps; i++) players.push({ name: 'Computer ' + (i + 1), bot: st.level });
-      state = E.newGame({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true });
+      state = E.newGame(Object.assign({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true }, CLIMATE_FLAG ? { version: 'climate' } : {}));
     }
     store.game = meta({ state, level, daily: o.daily || null, tut: !!o.tut });
     ME = 0;
@@ -565,7 +578,29 @@
   function openRules(open) {
     if (!COACH || !TU) { rulesSheet(); return; }
     closeSheet();
-    COACH.rules(Object.assign(TU.rules(TEXT, t => A.icon(t)), { open }));
+    const R = TU.rules(TEXT, t => A.icon(t));
+    // Evolution: Climate rules as one more section (before the videos)
+    if (CL) { const k = R.sections.findIndex(x => x.id === 'videos'); R.sections.splice(k < 0 ? R.sections.length : k, 0, { id: 'climate', title: 'Evolution: Climate', short: 'Climate', html: climateRulesHtml() }); }
+    COACH.rules(Object.assign(R, { open }));
+  }
+  // our own words for the Climate rules (official Climate rulebook; docs/rules-check.md "Climate")
+  function climateRulesHtml() {
+    const CT = EvoCards.CLIMATE_TEXT;
+    const tr = t => '<tr><td>' + A.icon(t) + ' <b>' + t + '</b></td><td>' + esc(CT[t]) + '</td></tr>';
+    const zones = CL.ZONES.map((z, i) => { const a = CL.zoneEffect(2, i), b = CL.zoneEffect(4, i); return '<tr><td>' + z.name + '</td><td>' + (a.loss ? sizesTxt(a.sizes) + ' −' + a.loss + (a.type === 'heat' ? ' heat' : ' cold') : '–') + '</td><td>' + fmtFood(a.leaf) + ' / ' + fmtFood(b.leaf) + '</td></tr>'; }).join('');
+    return '<p>A stand-alone version of Evolution where the climate changes. It starts at <b>Temperate</b>.</p>' +
+      '<ul><li><b>Deck:</b> base cards without Ambush, Burrowing, Defensive Herding and Carnivore, plus 86 Climate cards that carry suns or snowflakes.</li>' +
+      '<li><b>Setup:</b> 2 players set half the deck aside, 3 players 60 cards, 4 players 30. They become the deck when it runs out. Species hold 4 traits (3 with 2 players).</li>' +
+      '<li><b>Deal:</b> 4 cards, plus 1 per species.</li>' +
+      '<li><b>Swap:</b> after playing cards you may put any cards under the deck and draw as many.</li></ul>' +
+      '<h4>After the reveal</h4><ol><li>The marker moves one zone toward whichever is more on the food cards: suns (warmer) or snowflakes (colder). A tie stays.</li>' +
+      '<li>The face-up event under the marker happens (one a round), then is replaced from its deck.</li>' +
+      '<li>Every species of a listed size loses population to heat or cold, minus its protection. At 0 it goes extinct.</li>' +
+      '<li>Plant food = the food cards plus the zone’s number.</li></ol>' +
+      '<table><tr><th>Zone</th><th>Loss</th><th>Food 2–3 / 4–6 players</th></tr>' + zones + '</table>' +
+      '<h4>New traits</h4><table>' + ['Cooling Frills', 'Heavy Fur', 'Hibernation', 'Migratory', 'Mud Wallowing', 'Nocturnal'].map(tr).join('') + '</table>' +
+      '<h4>Changed traits</h4><table>' + ['Ambush', 'Burrowing', 'Defensive Herding'].map(tr).join('') + '</table>' +
+      '<h4>Events</h4><table>' + Object.keys(CL.EVENT_TEXT).map(k => '<tr><td><b>' + k + '</b></td><td>' + esc(CL.EVENT_TEXT[k]) + '</td></tr>').join('') + '</table>';
   }
   function undoMove() {
     const g = store.game;
@@ -586,6 +621,7 @@
   function renderGame() {
     const v = curView();
     if (!v || !v.players) { vPlay.innerHTML = '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'; return; }
+    VER = v.version || null;
     if (v.over) markOver(v);
     const me = v.players[ME];
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
@@ -646,10 +682,10 @@
       (fluidMine && ui.food != null ? cardFace(-1, { cls: 'mine-food', style: 'z-index:21', attr: ' data-myfood="1" aria-label="Your food card (tap to take it back)"' }) : '');
     // fluid play: where the lifted card can go glows (watering hole = food card, discard pile = grow a species)
     const holeCan = fluidMine && ui.sel != null, discCan = fluidMine && ui.sel != null;
-    const hole = '<div class="hole"><div class="deckw"><div id="deck" title="Draw pile" aria-label="Draw pile: ' + v.deckSize + ' cards"></div></div>' +
+    const hole = '<div class="hole' + (v.climate ? ' has-cl' : '') + '"><div class="deckw"><div id="deck" title="Draw pile" aria-label="Draw pile: ' + v.deckSize + ' cards"></div></div>' +
       '<div class="wh' + (holeCan ? ' can' : '') + '" data-go-hole="1"><div class="pondw">' + A.pond(v.hole) + '<div class="ptoks">' + pondTokens(v.hole) + '</div><div class="hnw"><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div></div>' +
       '<div class="fcards">' + fcards + '</div>' + oddsTxt + '</div>' +
-      '<div class="discw' + (discCan ? ' can' : '') + '"' + (fluidMine ? ' data-disc="1"' : '') + '><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div></div>';
+      '<div class="discw' + (discCan ? ' can' : '') + '"' + (fluidMine ? ' data-disc="1"' : '') + '><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div>' + climStrip(v) + '</div>';
 
     // --- my species
     const mySp = dv.species;
@@ -844,7 +880,7 @@
     const me = v.players[ME];
     const out = { hand: v.me ? v.me.hand.slice() : [], species: E.clone(me.species), players: null, ok: [] };
     // fluid play: my planned food card and a card waiting on the discard pile are out of my hand
-    if (v.phase === 'play') for (const c of [ui.food, ui.grow]) { const k = c == null ? -1 : out.hand.indexOf(c); if (k >= 0) out.hand.splice(k, 1); }
+    if (v.phase === 'play') for (const c of [ui.food, ui.grow].concat(ui.cycle || [])) { const k = c == null ? -1 : out.hand.indexOf(c); if (k >= 0) out.hand.splice(k, 1); }
     let made = 0;
     for (const m of ui.draft) {
       if (m.t === 'drop') { const sp = out.species.find(x => x.id === m.s); if (sp && sp.traits.concat(sp.hidden).indexOf(m.card) >= 0) { sp.traits = sp.traits.filter(x => x !== m.card); sp.hidden = sp.hidden.filter(x => x !== m.card); out.ok.push(m); } continue; }
@@ -863,9 +899,9 @@
   function isFluidPlay(v, myTurn) { return !!(v && v.fluid && v.phase === 'play' && myTurn && !v.over); }
   // the food number of my food card: placed, planned (fluid play) or picked in the food step
   function myFoodNum(v, picked) {
-    if (v.me && v.me.foodCard != null && v.me.foodCard >= 0) return DECK[v.me.foodCard].food;
-    if (v.phase === 'play' && ui.food != null) return DECK[ui.food].food;
-    if (picked && ui.sel != null && v.phase === 'food') return DECK[ui.sel].food;
+    if (v.me && v.me.foodCard != null && v.me.foodCard >= 0) return CARD[v.me.foodCard].food;
+    if (v.phase === 'play' && ui.food != null) return CARD[ui.food].food;
+    if (picked && ui.sel != null && v.phase === 'food') return CARD[ui.sel].food;
     return 0;
   }
   function canPlayOn(sp, card, mode, max) {
@@ -877,7 +913,7 @@
   function curMax() { try { return curView().maxTraits || 3; } catch (e) { return 3; } }
   // rebuild a minimal engine-like state from a view (online: for option lists on my own turn)
   function rebuildFor(v) {
-    return { hole: v.hole, players: v.players.map((pl, p) => ({ hand: p === ME && v.me ? v.me.hand.slice() : new Array(pl.handSize).fill(0), species: pl.species.map(sp => Object.assign({}, sp, { hidden: [] })) })) };
+    return { hole: v.hole, climate: v.climate, version: v.version, maxTraits: v.maxTraits, players: v.players.map((pl, p) => ({ hand: p === ME && v.me ? v.me.hand.slice() : new Array(pl.handSize).fill(0), species: pl.species.map(sp => Object.assign({}, sp, { hidden: [] })) })) };
   }
 
   function bigSp(sp, i, v, o) {
@@ -948,14 +984,14 @@
       // no cards at all (the deck and the discards ran dry): nothing to place, the round goes on
       if (!dv.hand.length) return '<span class="msg"><b>No cards</b> to place as food.</span><button class="btn primary" data-act="nofood">Go on</button>';
       if (ui.sel == null) return '<span class="msg"><b>Pick a food card.</b> Its number goes into the watering hole.</span>';
-      const f = DECK[ui.sel].food;
+      const f = CARD[ui.sel].food;
       return '<span class="msg">Adds <b>' + fmtFood(f) + '</b> plant food</span>' + infoBtn() + '<button class="btn primary" data-act="food">Use as food</button>';
     }
     if (v.phase === 'play' && v.fluid) {
       // one step: cards to species, the watering hole (food card) or the discard pile (grow), any order
       if (ui.grow != null) return '<span class="msg">Tap <b>Body</b>, <b>Pop</b> or <b>+</b> to grow.</span><button class="btn" data-act="growcancel">Cancel</button>';
-      if (ui.sel != null) return '<span class="msg">Tap a <b>species</b>, the <b>watering hole</b> or the <b>discard pile</b>.</span>' + infoBtn();
-      const n = ui.draft.length + (ui.food != null ? 1 : 0);
+      if (ui.sel != null) return '<span class="msg">Tap a <b>species</b>, the <b>watering hole</b> or the <b>discard pile</b>.</span>' + (v.climate ? '<button class="btn" data-act="swap">Swap</button>' : '') + infoBtn();
+      const n = ui.draft.length + (ui.food != null ? 1 : 0) + ui.cycle.length;
       const needFood = !!(v.me && v.me.hand.length) && ui.food == null;
       const undo = n ? '<button class="btn" data-act="undo">Undo</button>' : '';
       if (needFood) return undo + '<span class="msg"><b>Put a food card</b> at the watering hole.</span><button class="btn primary" data-act="done" disabled>Done</button>';
@@ -978,8 +1014,9 @@
       const canPass = !fo.some(o => o.must); // same rule as the engine's canPass (works online too)
       if (ui.needCard) {
         const n = ui.needCard;
-        const left = n.t === 'intel' ? 1 : n.ignore.length - n.cards.length;
-        return '<span class="msg"><b>Pick ' + left + ' card' + (left > 1 ? 's' : '') + ' to discard</b>' + (n.t === 'attack' ? ' (Intelligence: ' + esc(n.ignore.join(' + ')) + ')' : '') + '</span><button class="btn" data-act="cancel">Cancel</button>';
+        const left = n.t === 'intel' ? 1 : n.ignore.length + (n.mud || 0) - n.cards.length;
+        const why = n.t !== 'attack' ? [] : (n.ignore.length ? ['Intelligence: ' + n.ignore.join(' + ')] : []).concat(n.mud ? ['Mud Wallowing'] : []);
+        return '<span class="msg"><b>Pick ' + left + ' card' + (left > 1 ? 's' : '') + ' to discard</b>' + (why.length ? ' (' + esc(why.join(', ')) + ')' : '') + '</span><button class="btn" data-act="cancel">Cancel</button>';
       }
       if (ui.feedSel == null) return '<span class="msg"><b>Tap a species</b> to feed it.' + (canPass ? '' : ' You must feed.') + '</span>' + (canPass ? '<button class="btn" data-act="pass">Pass</button>' : '');
       const sp = dv.species.find(x => x.id === ui.feedSel);
@@ -993,7 +1030,7 @@
         if (ui.target == null) return '<span class="msg"><b>Tap a species to attack.</b> Outlined = can be eaten.</span><button class="btn" data-act="cancel">Cancel</button>';
         const att = opts.find(o => o.target === ui.target);
         const tl = findInView(v, ui.target);
-        return '<span class="msg">Eat <b>' + (tl ? tl.sp.body : '?') + ' meat</b>' + (att && att.ignore.length ? ' · costs ' + att.ignore.length + ' card' + (att.ignore.length > 1 ? 's' : '') : '') + (tl && tl.sp.traits.some(id => T(id) === 'Horns') && !(att && att.ignore.indexOf('Horns') >= 0) ? ' · Horns: −1 pop' : '') + '</span>' +
+        return '<span class="msg">Eat <b>' + (tl ? tl.sp.body : '?') + ' meat</b>' + (att && (att.ignore.length || att.mud) ? ' · costs ' + (att.ignore.length + (att.mud || 0)) + ' card' + (att.ignore.length + (att.mud || 0) > 1 ? 's' : '') : '') + (tl && tl.sp.traits.some(id => T(id) === 'Horns') && !(att && att.ignore.indexOf('Horns') >= 0) ? ' · Horns: −1 pop' : '') + '</span>' +
           '<button class="btn" data-act="cancel">Cancel</button><button class="btn red" data-act="attack">Attack</button>';
       }
       return btns.join('') + '<button class="btn" data-act="cancel">Cancel</button>';
@@ -1085,6 +1122,7 @@
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
     if (t.id === 'over') { ui.hideOver = true; renderPlay(); return; }
     if (isFluidPlay(v, myTurn) && !t.closest('[data-act]') && fluidClick(t, v)) return;
+    if (t.closest('[data-go-clim]')) { climateSheet(v); return; }
     if (t.closest('[data-go-hole]')) { holeSheet(v); return; }
     const actB = t.closest('[data-act]');
     if (actB) { if (Date.now() < (ui.tapLock || 0)) return; doAct(actB.dataset.act, v); return; }
@@ -1210,15 +1248,18 @@
   function playsSheet(v) {
     const dv = draftView(v);
     const where = id => { const i = dv.species.findIndex(x => x.id === id); return dv.species.length > 1 && i >= 0 ? ' · species ' + (i + 1) : ''; };
-    const rows = (ui.food != null ? [['food', 'Food card: ' + T(ui.food) + ' (' + fmtFood(DECK[ui.food].food) + ')']] : [])
-      .concat(ui.draft.map((m, i) => [i, describeMove(null, m) + (m.t !== 'species' ? where(m.s) : '')]));
+    const rows = (ui.food != null ? [['food', 'Food card: ' + T(ui.food) + ' (' + fmtFood(CARD[ui.food].food) + ')']] : [])
+      .concat(ui.draft.map((m, i) => [i, describeMove(null, m) + (m.t !== 'species' ? where(m.s) : '')]))
+      .concat(ui.cycle.map((c, i) => ['c' + i, 'Swap: ' + T(c) + ' (' + fmtFood(CARD[c].food) + ') goes under the deck']));
     sheet('Your plays this turn', rows.length ? '<div class="choices">' + rows.map(([k, txt]) => '<div class="row" style="gap:8px"><span class="grow small">' + esc(txt) + '</span><button class="btn small" data-tb="' + k + '">Take back</button></div>').join('') + '</div>' :
       '<p class="muted small" style="margin-top:0">Nothing played yet this turn.</p>', e => {
       const b = e.target.closest('[data-tb]');
       if (!b) return;
-      if (b.dataset.tb === 'food') { ui.food = null; ui.foodAt = 0; sfx('cardSlide', { pitch: 0.8 }); } else takeBack(+b.dataset.tb);
+      if (b.dataset.tb === 'food') { ui.food = null; ui.foodAt = 0; sfx('cardSlide', { pitch: 0.8 }); }
+      else if (b.dataset.tb.charAt(0) === 'c') { ui.cycle.splice(+b.dataset.tb.slice(1), 1); sfx('cardSlide', { pitch: 0.8 }); }
+      else takeBack(+b.dataset.tb);
       renderPlay();
-      if (ui.food != null || ui.draft.length) playsSheet(curView()); else closeSheet();
+      if (ui.food != null || ui.draft.length || ui.cycle.length) playsSheet(curView()); else closeSheet();
     });
   }
   function dropSheet(v, id) {
@@ -1240,13 +1281,20 @@
     }
     if (k === 'nofood') { send({ t: 'food' }); return; }
     if (k === 'cardinfo') { if (ui.sel != null) cardSheet(ui.sel); return; }
+    // Climate: the lifted card goes back under the deck when Done is sent, and I draw one for it
+    if (k === 'swap' && ui.sel != null && v.climate) {
+      if (ui.cycle.length >= v.deckSize) { sfx('error'); toast('The deck has only ' + v.deckSize + ' card' + (v.deckSize === 1 ? '' : 's')); return; }
+      sfx('cardSlide'); fxFly(handEl(ui.sel), $('#deck'));
+      ui.cycle.push(ui.sel); ui.sel = null; renderPlay(); return;
+    }
+    if (k === 'undo' && v.fluid && v.phase === 'play' && ui.cycle.length) { sfx('cardSlide', { pitch: 0.8 }); ui.cycle.pop(); renderPlay(); return; }
     if (k === 'growcancel') { sfx('cardSlide', { pitch: 0.8 }); ui.grow = null; renderPlay(); return; }
     // fluid play: Undo takes back the last thing placed (the food card counts); Done sends it all in one move
     if (k === 'undo' && v.fluid && v.phase === 'play' && ui.food != null && ui.foodAt >= ui.draft.length) { takeBackFood(); return; }
     if (k === 'done' && v.fluid && v.phase === 'play') {
       if (v.me && v.me.hand.length && ui.food == null) { sfx('error'); toast('Put a food card at the watering hole'); return; }
       ui.sel = null; ui.grow = null;
-      send(Object.assign({ t: 'play', moves: ui.draft.slice() }, ui.food != null ? { food: ui.food } : {})); return;
+      send(Object.assign({ t: 'play', moves: ui.draft.slice() }, ui.food != null ? { food: ui.food } : {}, ui.cycle.length ? { cycle: ui.cycle.slice() } : {})); return;
     }
     if (k === 'undo') { if (ui.draft.length) sfx('cardSlide', { pitch: 0.8 }); ui.draft.pop(); renderPlay(); return; }
     if (k === 'done') {
@@ -1264,7 +1312,8 @@
       const fo = table.online ? E.feedOptions(rebuildFor(v), ME) : E.feedOptions(table.game.state, ME);
       const o = fo.find(x => x.t === 'attack' && x.s === ui.feedSel && x.target === ui.target);
       if (!o) return;
-      if (o.ignore.length) { ui.needCard = { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, cards: [] }; renderPlay(); return; }
+      // cards to discard: one per trait Intelligence switches off, plus one for Mud Wallowing (Climate)
+      if (o.ignore.length || o.mud) { ui.needCard = { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, mud: o.mud || 0, cards: [] }; renderPlay(); return; }
       send({ t: 'attack', s: ui.feedSel, target: ui.target }); return;
     }
   }
@@ -1286,7 +1335,7 @@
     const n = ui.needCard;
     if (n.t === 'intel') { send({ t: 'intel', s: n.s, card }); return; }
     if (n.cards.indexOf(card) >= 0) n.cards = n.cards.filter(c => c !== card); else n.cards.push(card);
-    if (n.cards.length >= n.ignore.length) { send({ t: 'attack', s: n.s, target: n.target, ignore: n.ignore, cards: n.cards.slice() }); return; }
+    if (n.cards.length >= n.ignore.length + (n.mud || 0)) { send({ t: 'attack', s: n.s, target: n.target, ignore: n.ignore, cards: n.cards.slice() }); return; }
     renderPlay();
   }
   function send(action) {
@@ -1306,10 +1355,10 @@
     if (store.game && !store.game.tut && !store.game.helped) { store.game.helped = true; save(); }
     const s = table.game.state;
     const a = B.decide(s, ME, 'hard');
-    if (s.phase === 'food') { ui.sel = a.card; renderPlay(); toast('Hard computer would feed with ' + T(a.card) + ' (' + fmtFood(DECK[a.card].food) + ')'); return; }
+    if (s.phase === 'food') { ui.sel = a.card; renderPlay(); toast('Hard computer would feed with ' + T(a.card) + ' (' + fmtFood(CARD[a.card].food) + ')'); return; }
     if (s.phase === 'play') {
       // fluid play: its food card first, then its card plays
-      const food = s.fluid && a.food != null ? '<li class="me">Food card: ' + esc(T(a.food)) + ' (' + fmtFood(DECK[a.food].food) + ')</li>' : '';
+      const food = s.fluid && a.food != null ? '<li class="me">Food card: ' + esc(T(a.food)) + ' (' + fmtFood(CARD[a.food].food) + ')</li>' : '';
       sheet('Hard computer’s plan', a.moves.length || food ? '<ul class="log">' + food + a.moves.map(m => '<li class="me">' + esc(describeMove(s, m)) + (m.s != null && m.t !== 'species' ? ' · on ' + spName(s, m.s < 0 ? -1 : m.s) : '') + '</li>').join('') + '</ul>' : '<p class="muted">Keep your cards this round.</p>');
       return;
     }
@@ -1334,7 +1383,7 @@
     });
   }
   function rulesSheet() {
-    sheet('How to play', '<div class="small" style="display:flex;flex-direction:column;gap:8px">' + RULES_HTML + '</div>');
+    sheet('How to play', '<div class="small" style="display:flex;flex-direction:column;gap:8px">' + RULES_HTML + (CL ? '<p style="margin:0"><b>Evolution: Climate</b></p>' + climateRulesHtml() : '') + '</div>');
   }
   const RULES_HTML =
     '<p style="margin:0"><b>Goal:</b> most points at the end = food eaten + population of living species + traits on living species.</p>' +
@@ -1346,8 +1395,10 @@
     '<p style="margin:0"><b>6. End of round:</b> unfed population starves (a species at 0 goes extinct: draw 1 card per trait it had); eaten food goes in your bag. The game ends after the round in which the deck runs out. Ties: most traits, then most population.</p>';
 
   function cardSheet(id) {
-    const c = DECK[id];
-    sheet(c.trait, '<div style="display:flex;justify-content:center;padding:6px 0">' + bigTrait(c.trait, c.food) + '</div>' + traitStatsHtml(c.trait));
+    const c = CARD[id];
+    sheet(c.trait, '<div style="display:flex;justify-content:center;padding:6px 0">' + bigTrait(c.trait, c.food, c) + '</div>' +
+      (c.sun || c.snow ? '<p class="small" style="margin:6px 0">' + (c.sun ? c.sun + ' sun' + (c.sun > 1 ? 's' : '') + ': pushes the climate warmer' : c.snow + ' snowflake' + (c.snow > 1 ? 's' : '') + ': pushes the climate colder') + ' when it is a food card.</p>' : '') +
+      traitStatsHtml(c.trait));
   }
   function speciesSheet(v, id) {
     const loc = findInView(v, id);
@@ -1361,6 +1412,51 @@
       '<p class="small"><b>Body ' + sp.body + ' · Population ' + sp.pop + ' · Food ' + sp.food + (sp.fat ? ' · Fat ' + sp.fat : '') + '</b></p>' +
       '<div class="label">Can be eaten by</div>' + (by.length ? '<ul class="log">' + by.map(x => '<li class="me">' + nm(x.cp) + ' ' + v.players[x.cp].species[x.ci].body + '/' + v.players[x.cp].species[x.ci].pop + ' Carnivore</li>').join('') + '</ul>' : '<p class="muted small" style="margin:2px 0">Nobody right now.</p>') +
       (not.length ? '<div class="label" style="margin-top:8px">Safe from</div><ul class="log">' + not.map(x => '<li>' + nm(x.cp) + ' ' + v.players[x.cp].species[x.ci].body + '/' + v.players[x.cp].species[x.ci].pop + ': ' + esc(x.why) + '</li>').join('') + '</ul>' : ''));
+  }
+  // ---- Evolution: Climate: the climate board under the watering hole (9 zones, the marker, the two
+  // face-up events under their zones) and its sheet
+  const sizesTxt = z => (z.length === 6 ? 'all sizes' : z.length === 1 ? 'size ' + z[0] : 'size ' + z[0] + '–' + z[z.length - 1]);
+  // what a zone or event does this round, in a few words: "size 3–6 lose 2 · +3 food"
+  function effTxt(e) {
+    const loss = e.loss && e.sizes.length ? sizesTxt(e.sizes) + ' lose ' + e.loss + (e.type === 'heat' ? ' to heat' : ' to cold') : '';
+    return [loss, (e.leaf > 0 ? '+' : e.leaf < 0 ? '−' : '') + Math.abs(e.leaf) + ' food'].filter(Boolean).join(' · ');
+  }
+  function evTxt(e) {
+    if (e.kind === 'Volcanic Eruption') return 'Volcanic Eruption → ' + CL.ZONES[e.to].name;
+    if (e.kind === 'Heat Wave' || e.kind === 'Cold Snap') return e.kind + ': ' + effTxt(e);
+    return e.kind;
+  }
+  function climStrip(v) {
+    const c = v.climate;
+    if (!c || !CL) return '';
+    const n = v.players.length;
+    const up = d => (c.up[d] != null ? CL.EVENTS[c.up[d]] : null);
+    const evs = [up('cold'), up('hot')].filter(Boolean);
+    const cells = CL.ZONES.map((z, i) => '<i class="z z' + i + (i === c.zone ? ' on' : '') + '">' + (i === c.zone ? '<b class="mk"></b>' : '') +
+      evs.filter(e => e.zone === i).map(e => '<s class="evm ' + e.deck + '" title="' + esc(e.kind) + '"></s>').join('') + '</i>').join('');
+    const z = CL.zoneEffect(n, c.zone);
+    // (phones show only the event's name: its zone is the little arrow under the track)
+    const chip = e => '<span class="cev ' + e.deck + '" title="' + esc(CL.ZONES[e.zone].name + ': ' + evTxt(e)) + '"><span class="cz">' + esc(CL.ZONES[e.zone].name) + ': </span>' + esc(e.kind) + '</span>';
+    const flags = [c.meteor ? 'Meteorite' : '', c.thaw ? 'Thaw' : '', c.volcano != null ? 'Volcano' : '', c.aside ? c.aside + ' held' : ''].filter(Boolean);
+    return '<div class="clim" data-go-clim="1" role="button" aria-label="Climate: ' + esc(CL.ZONES[c.zone].name) + '"><div class="ztrack">' + cells + '</div>' +
+      '<span class="zn"><b>' + esc(CL.ZONES[c.zone].name) + '</b> ' + esc(fmtFood(z.leaf) + ' food' + (z.loss ? ' · ' + sizesTxt(z.sizes) + ' −' + z.loss + ' pop' : '')) + (flags.length ? ' · ' + esc(flags.join(' · ')) : '') + '</span>' +
+      '<span class="cevs">' + evs.map(chip).join('') + '</span></div>';
+  }
+  function climateSheet(v) {
+    const c = v.climate;
+    if (!c || !CL) return;
+    const n = v.players.length;
+    const rows = CL.ZONES.map((zz, i) => { const e = CL.zoneEffect(n, i);
+      return '<tr' + (i === c.zone ? ' class="on"' : '') + '><td><i class="zsw z' + i + '"></i> ' + esc(zz.name) + (i === c.zone ? ' ◀' : '') + '</td><td>' + (e.loss ? esc(sizesTxt(e.sizes)) + ' −' + e.loss : '–') + '</td><td>' + fmtFood(e.leaf) + '</td></tr>'; }).join('');
+    const ev = d => { const e = c.up[d] != null ? CL.EVENTS[c.up[d]] : null;
+      return e ? '<li><b>' + esc(CL.ZONES[e.zone].name) + ': ' + esc(evTxt(e)) + '.</b> ' + esc(CL.EVENT_TEXT[e.kind]) + '</li>' : ''; };
+    const now = [c.meteor ? 'A Meteorite struck: a positive plant total adds nothing for the rest of the game.' : '', c.thaw ? 'Glacial Thaw: 3 extra suns at the next reveal.' : '',
+      c.volcano != null ? 'Volcanic Eruption: the marker jumps to ' + CL.ZONES[c.volcano].name + ' after feeding.' : '', c.aside ? 'Wildfire: ' + c.aside + ' plant food comes back before the next deal.' : ''].filter(Boolean);
+    sheet('Climate', '<p class="small" style="margin-top:0">Food cards’ suns and snowflakes move the marker one zone toward whichever has more. Then the zone takes population (minus each species’ protection) and adds its plant food.</p>' +
+      '<table class="tm zt"><tr><th>Zone</th><th>Population loss</th><th>Food (' + (n >= 4 ? '4–6' : '2–3') + ' players)</th></tr>' + rows + '</table>' +
+      (c.events ? '<div class="label" style="margin-top:8px">Events face up</div><ul class="log">' + ev('cold') + ev('hot') + '</ul><p class="muted small" style="margin:2px 0">An event happens when the marker ends on its zone (one a round).</p>' : '<p class="muted small">Events are off in this game.</p>') +
+      (now.length ? '<ul class="log">' + now.map(x => '<li class="me">' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      (c.reserve ? '<p class="muted small" style="margin:4px 0">' + c.reserve + ' cards set aside: they become the deck when it runs out.</p>' : ''));
   }
   function holeSheet(v) {
     const fc = O.holeForecast(v, myFoodNum(v, false));
@@ -1378,7 +1474,7 @@
   const vLab = $('#v-lab');
   function traitStatsHtml(t) {
     const L = window.EvoLab;
-    const foods = FOOD[t] || [];
+    const foods = VER === 'climate' ? EvoCards.foodsOf(t, 'climate') : FOOD[t] || [];
     let html = '<p class="small" style="margin:6px 0">' + foods.length + ' cards in the deck. Food numbers: ' + foods.slice().sort((a, b) => a - b).map(fmtFood).join(', ') + '.</p>';
     if (L && L.traits[t]) {
       const x = L.traits[t];
