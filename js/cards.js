@@ -1,6 +1,7 @@
-/* Evolution Lab: the base-game deck (Evolution, North Star Games, 2nd edition 2015+, 2017 rulebook).
-   Facts only (trait names, copies, food numbers); every effect text below is our own words.
-   129 cards: 17 Carnivore + 7 of each other trait. Sources and cross-checks: docs/rules-check.md. */
+/* Evolution Lab: the cards (Evolution, North Star Games, 2nd edition 2015+, 2017 rulebook), plus
+   Evolution: Flight and the promo packs. Facts only (trait names, copies, food numbers); every effect
+   text below is our own words. Base: 129 cards, 17 Carnivore + 7 of each other trait.
+   Sources and cross-checks: docs/rules-check.md. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.EvoCards = factory();
@@ -49,10 +50,96 @@
     'Warning Call': 'Your species on either side of it can only be attacked by a Carnivore with Ambush.',
   };
   const TRAITS = Object.keys(FOOD);
-  // DECK[id] = {id, trait, food}; ids are stable (trait order, then food order)
+  // DECK[id] = {id, trait, food}; ids are stable (trait order, then food order). DECK is the base deck only.
   const DECK = [];
   for (const t of TRAITS) for (const f of FOOD[t]) DECK.push({ id: DECK.length, trait: t, food: f });
+
+  // ---------------------------------------------------------------- expansions (docs/expansions-research.md)
+  // ALL[id] = every card any game can hold. Ids never change: 0-128 base, 129-176 Flight deck cards,
+  // 177-188 the 12 Flight cards (kept out of the deck, no food number), 189-286 promo packs.
+  // Ids 300 and up are left for Evolution: Climate (branch exp-climate).
+  const ALL = DECK.slice();
+  const ONE = [-1, 0, 1, 2, 3, 4, 5];          // the spread every 7-copy expansion/promo trait uses
+  const SETS = {};                            // set key -> card ids
+  function add(set, trait, foods, o) {
+    SETS[set] = SETS[set] || [];
+    for (const f of foods) { const c = Object.assign({ id: ALL.length, trait, food: f, set }, o || {}); ALL.push(c); SETS[set].push(c.id); }
+  }
+  // Flight (2015 rulebook + card scan, exact): 34 traits + 14 events go into the deck
+  add('flight', 'Brood Parasite', ONE);
+  add('flight', 'Camouflage', ONE);
+  add('flight', 'Good Eyesight', ONE);
+  add('flight', 'Nesting', ONE);
+  add('flight', 'Carnivore', [-4, -3, -2, -1, 7, 8]);
+  add('flight', 'Dive-Bomb', ONE, { event: true });
+  add('flight', 'Seed Dispersal', ONE, { event: true });
+  add('flightCards', 'Flight', new Array(12).fill(null)); // ride on Avian boards, never in the deck
+  // Promo Pack I (exact)
+  add('pp1', 'Unstable DNA', ONE);
+  // Promo Pack II, exact food numbers
+  add('pp2', 'Last Stand', ONE, { event: true });
+  add('pp2', 'Pest', ONE);
+  add('pp2', 'Pounce', ONE, { event: true });
+  add('pp2', 'Quills', ONE);
+  add('pp2', 'Sharp Teeth', ONE);
+  // Promo Pack II, food numbers NOT known: the usual -1..5 spread (estimated, said so in the picker)
+  add('pp2x', 'Invasive Species', ONE, { event: true, est: true });
+  add('pp2x', 'Rapid Mutation', ONE, { est: true });
+  // Promo Pack III traits, food numbers NOT known (estimated)
+  for (const t of ['Claws', 'Coprophagia', 'Insectivore', 'Mimicry', 'Timid', 'Trampling']) add('pp3x', t, ONE, { est: true });
+  const FLIGHT_CARDS = SETS.flightCards;
+
+  Object.assign(TEXT, {
+    'Brood Parasite': 'Avian only: before the food cards are revealed, if you have another Avian species, +1 population and 1 food from the bank. No effect on a land species.',
+    'Camouflage': 'Only a Carnivore with Good Eyesight can attack it.',
+    'Good Eyesight': 'Carnivore: may attack Camouflage. Plant eater: before the food cards are revealed, takes 2 plant food from the watering hole.',
+    'Nesting': 'Each time it gains population: a land species takes 1 plant food from the bank; an Avian takes 2 meat from the bank.',
+    'Dive-Bomb': 'Event. After traits are revealed, discard it to feed one of your Avians at once (a Carnivore attacks; a plant eater takes 2 plant food from the watering hole, the cliff or the bank). Then draw a card.',
+    'Seed Dispersal': 'Event. After traits are revealed, discard it: the watering hole gets 1 plant food per Avian species in play. Then draw a card.',
+    'Flight': 'Comes with every Avian board. Only a Carnivore with Flight can attack it. A plant eater may eat at the cliff. A Carnivore may discard a card to switch off Warning Call, Symbiosis or Climbing for its next attack.',
+    'Unstable DNA': 'When the food cards are revealed, if food was left in the watering hole from last round, you get a new species.',
+    'Last Stand': 'Event. When a Carnivore attacks your species, discard it: the attacker loses 1 population instead and the attack fails. Then draw a card.',
+    'Pest': 'When it becomes fully fed, 3 plant food is removed from the watering hole.',
+    'Pounce': 'Event. After traits are revealed, discard it: your land Carnivore attacks at once, ignoring one defending trait. Then draw a card.',
+    'Quills': 'A Carnivore that attacks it can not attack again this round.',
+    'Sharp Teeth': 'Discard a card on your feeding turn: a Carnivore may attack any size on its next attack; a plant eater takes 1 plant food from the bank.',
+    'Invasive Species': 'Event. After traits are revealed, discard it onto one of your plant eaters: this round it gains 1 population each time another species is attacked.',
+    'Rapid Mutation': 'When traits are revealed: draw 3 cards, swap this card for a trait from your hand, then discard 2 cards.',
+    'Claws': 'Counts as 2 bigger when it attacks or is attacked. Before the food cards are revealed, may discard a card to have Climbing this round.',
+    'Coprophagia': 'Instead of eating at the watering hole, may take food back out of your own food bag.',
+    'Insectivore': 'Before each of your feeding turns, takes 1 meat from the bank if the watering hole has food.',
+    'Mimicry': 'Before the food cards are revealed, copies a trait of another species for this round; then Mimicry is discarded.',
+    'Timid': 'Can not be attacked. May not eat at the watering hole until your other species are fed.',
+    'Trampling': 'Each time it eats at the watering hole, 2 more plant food is removed from it.',
+  });
+  const card = id => ALL[id];
+  // the deck a game starts with. exp = {v: 'base' | 'flight' | 'climate', promos: ['pp1','pp2','pp2x','pp3x']}
+  // Promo cards are ADDED to the deck (the promo sheet's same-colour swap needs card colours we don't have).
+  function buildDeck(exp) {
+    const v = (exp && exp.v) || 'base';
+    let ids = null;
+    if (v === 'climate' && api.climateDeck) ids = api.climateDeck(exp); // Evolution: Climate plugs in here
+    if (!ids) ids = DECK.map(c => c.id).concat(v === 'flight' ? SETS.flight : []);
+    for (const k of (exp && exp.promos) || []) if (PROMOS[k]) ids = ids.concat(SETS[k]);
+    return ids;
+  }
+  const PROMOS = { pp1: 'Promo Pack I', pp2: 'Promo Pack II', pp2x: 'Promo Pack II (estimated)', pp3x: 'Promo Pack III traits (estimated)' };
+  // Promo Pack III scenario cards that work in this engine (Climate-only ones and Darwinian Selection are not built)
+  const SCENARIOS = {
+    'Cretaceous Period': 'No limit on traits per species.',
+    'Great Permian Extinction': 'At most 1 trait per species.',
+    'Land of Plenty': 'Everyone starts the game with 10 cards.',
+    'Plant Life Explosion': 'Food left in the watering hole doubles at the end of each round.',
+    'Teeming Hordes': 'New species start at population 2.',
+    'Radioactive Atmosphere': 'Deal 2 cards per species instead of 1.',
+  };
+  const EVENTS = ['Dive-Bomb', 'Seed Dispersal', 'Last Stand', 'Pounce', 'Invasive Species'];
+  const isEvent = id => !!(ALL[id] && ALL[id].event);
   // traits a Carnivore may switch off with Intelligence (the ones that stop or punish an attack)
   const DEFENSES = ['Burrowing', 'Climbing', 'Defensive Herding', 'Hard Shell', 'Horns', 'Symbiosis', 'Warning Call'];
-  return { FOOD, TEXT, TRAITS, DECK, DEFENSES };
+  // the same, with the expansion defences (Flight, Camouflage, Quills, Timid); used only in games that hold them
+  const XDEFENSES = DEFENSES.concat(['Flight', 'Camouflage', 'Quills', 'Timid']);
+  const ALL_TRAITS = [...new Set(ALL.map(c => c.trait))];
+  const api = { FOOD, TEXT, TRAITS, DECK, DEFENSES, ALL, SETS, FLIGHT_CARDS, PROMOS, SCENARIOS, EVENTS, XDEFENSES, ALL_TRAITS, card, buildDeck, isEvent, climateDeck: null };
+  return api;
 });

@@ -8,7 +8,7 @@
   else root.EvoOdds = factory(root.EvoCards, root.EvoEngine);
 })(typeof self !== 'undefined' ? self : this, function (Cards, E) {
   'use strict';
-  const { DECK } = Cards;
+  const ALL = Cards.ALL; // every card id (expansions included)
 
   // the food numbers this seat has not seen: whole deck minus my hand, my food card,
   // traits face up on any board, my own face-down traits, and food cards revealed earlier
@@ -20,7 +20,8 @@
     v.players.forEach(pl => pl.species.forEach(sp => { sp.traits.forEach(id => seen.add(id)); sp.hidden.forEach(id => { if (id >= 0) seen.add(id); }); }));
     (v.hist || []).forEach(h => (h.foodCards || []).forEach(id => seen.add(id)));
     const out = [];
-    for (const c of DECK) if (!seen.has(c.id)) out.push(c.food);
+    // the cards this game was built from (expansions add cards; the Flight cards never hold a food number)
+    for (const id of Cards.buildDeck(v.exp)) if (!seen.has(id) && ALL[id].food != null) out.push(ALL[id].food);
     return out;
   }
 
@@ -77,8 +78,9 @@
   function plantDemand(v) {
     let need = 0;
     v.players.forEach(pl => pl.species.forEach(sp => {
-      const carn = sp.traits.some(id => DECK[id].trait === 'Carnivore');
-      if (!carn) need += Math.max(0, sp.pop - sp.food);
+      const carn = sp.traits.some(id => ALL[id].trait === 'Carnivore');
+      // an Avian (Flight) first needs food equal to its body size (upkeep)
+      if (!carn) need += Math.max(0, sp.pop - sp.food) + (sp.av ? Math.max(0, sp.body - (sp.up || 0)) : 0);
     }));
     return need;
   }
@@ -86,7 +88,7 @@
   // threat map from a view: for each species, the carnivores that can attack it now.
   // Works on a view (face-down traits count as unknown = ignored, like at the table).
   function threatMap(v) {
-    const s = { players: v.players.map(pl => ({ species: pl.species.map(sp => ({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(), hidden: [] })) })) };
+    const s = { players: v.players.map(pl => ({ species: pl.species.map(sp => ({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(), hidden: [], av: sp.av, up: sp.up, tmp: sp.tmp, noAtk: sp.noAtk })) })) };
     const out = [];
     s.players.forEach((pl, cp) => pl.species.forEach((C, ci) => {
       if (!E.isCarn(C)) return;

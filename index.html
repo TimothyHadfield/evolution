@@ -190,6 +190,18 @@
   .sp .flag.danger { background: var(--meat); color: #fff; }
   .sp .flag.carn { background: #7d231b; color: #fff; left: -5px; right: auto; }
   .sp.carnivore .board { background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255,255,255,.2), transparent 70%), linear-gradient(180deg, #d9b597, #c0926f); border-color: #7a4430; }
+  /* Flight: Avian boards are sky blue (lilac for an Avian Carnivore); upkeep spaces come first, the body track stops at 3 */
+  .sp.avian .board { background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255,255,255,.3), transparent 70%), linear-gradient(180deg, #bcd6ea, #8fb4d2); border-color: #3f6688; box-shadow: 0 1px 0 #7d9fbd, 0 2px 0 #3f6688, 0 4px 8px rgba(0,0,0,.5); }
+  .sp.avian.carnivore .board { background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255,255,255,.25), transparent 70%), linear-gradient(180deg, #cdbfe0, #a597c4); border-color: #5a4a80; }
+  .sp .slot.upslot { border-color: rgba(36,80,127,.7); border-radius: 3px; }
+  .ftk.up { border-radius: 3px; }
+  .trk i.off { opacity: .25; }
+  .tr.tmp { border-style: dashed; opacity: .85; }
+  .msp.avian .mb { background: linear-gradient(180deg, #bcd6ea, #8fb4d2); border-color: #3f6688; }
+  .msp.avian.carnivore .mb { background: linear-gradient(180deg, #cdbfe0, #a597c4); border-color: #5a4a80; }
+  .msp .fdots i.up { border-radius: 1px; border-color: rgba(36,80,127,.7); }
+  .msp .ics .ic.tmp { border-style: dashed; opacity: .85; }
+  .addon { gap: 8px; align-items: center; font-size: 14px; }
   .newsp { flex: none; width: 46px; border: 2px dashed rgba(255,236,200,.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: rgba(255,236,200,.6); font-size: 22px; cursor: pointer; background: rgba(0,0,0,.1); }
   .newsp.can { border-color: var(--accent); color: var(--accent); }
   /* my own first-player token and food bag, on the table beside my boards */
@@ -363,6 +375,11 @@
   .tr[data-planned] { cursor: pointer; }
   .hole .odds { margin-left: auto; font-size: 11px; color: #3b2c14; text-align: right; line-height: 1.25; white-space: nowrap; flex: none; padding: 3px 6px; border-radius: 2px;
     background: linear-gradient(#f6f0de, #ece2c6); box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.3); transform: rotate(-2deg); }
+  /* Flight: the cliff, a grey stone ledge beside the watering hole with its plant food count */
+  .hole .cliff { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 34px; padding: 3px 5px; margin-left: 6px; border-radius: 6px 10px 3px 3px;
+    background: linear-gradient(180deg, #9a9488, #6d675c); border: 1px solid #4a453c; box-shadow: 0 2px 0 #3d382f, 0 3px 5px rgba(0,0,0,.45); color: #fff; }
+  .hole .cliff b { font-size: 16px; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+  .hole .cliff span { font-size: 7.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; color: #e6f3dc; }
   .hole .odds b { color: #1d150a; }
   .hole .odds .muted { color: #7d6a48; }
   .mine { grid-area: mine; display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 6px; align-items: stretch; min-width: 0; min-height: -webkit-max-content; min-height: max-content; }
@@ -492,6 +509,7 @@
   .hero p { margin: 0; color: var(--muted); font-size: 13px; }
   .setup .panel { display: flex; flex-direction: column; gap: 10px; }
   .txt { font-size: 16px; background: var(--bg-soft); color: var(--text); border: 1px solid var(--line); border-radius: 8px; min-height: 42px; padding: 0 12px; width: 100%; min-width: 0; }
+  select.txt { -webkit-appearance: none; appearance: none; padding-right: 32px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: right 17px center, right 12px center; background-size: 5px 5px; background-repeat: no-repeat; }
   .txt.code { text-transform: uppercase; letter-spacing: .2em; font-weight: 700; flex: 1; }
   .code-big { font-size: 38px; font-weight: 800; letter-spacing: .2em; padding-left: .2em; color: var(--accent-warm); font-variant-numeric: tabular-nums; }
   .seats { display: flex; flex-direction: column; gap: 6px; }
@@ -613,14 +631,15 @@
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/cards.js?v=7"></script>
-<script src="js/engine.js?v=9"></script>
-<script src="js/bots.js?v=9"></script>
-<script src="js/odds.js?v=7"></script>
+<script src="js/cards.js?v=8"></script>
+<script src="js/flight.js?v=1"></script>
+<script src="js/engine.js?v=10"></script>
+<script src="js/bots.js?v=10"></script>
+<script src="js/odds.js?v=8"></script>
 <script src="js/lab-data.js?v=7"></script>
 <script src="js/strength-data.js?v=7"></script>
-<script src="js/online-game.js?v=8"></script>
-<script src="js/art.js?v=8"></script>
+<script src="js/online-game.js?v=9"></script>
+<script src="js/art.js?v=9"></script>
 <script src="js/fx.js?v=7"></script>
 <script src="js/table.js?v=7"></script>
 <script src="js/game-fx.js?v=11"></script>
@@ -628,7 +647,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="16"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/pwa.js?v=13" data-version="17"></script>
+<script src="js/app.js?v=16"></script>
 </body>
 </html>

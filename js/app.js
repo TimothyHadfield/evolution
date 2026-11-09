@@ -4,7 +4,10 @@
 (function () {
   'use strict';
   const VERSION = '1.2 · 2026-10-20';
-  const { DECK, TRAITS, TEXT, FOOD } = EvoCards;
+  const { TRAITS, TEXT, FOOD } = EvoCards;
+  const DECK = EvoCards.ALL, BASE_DECK = EvoCards.DECK; // every card id (expansions too); the base deck for the Lab numbers
+  const EXP0 = () => ({ v: 'base', promos: [], scen: null });
+  const isEvCard = id => id >= 0 && EvoCards.isEvent(id);
   const E = EvoEngine, B = EvoBots, O = EvoOdds, A = EvoArt;
   const KEY = 'evolution:v1';
   let ME = 0;
@@ -34,7 +37,7 @@
 
   // ------------------------------------------------------------------ storage
   function fresh() {
-    return { v: 1, settings: { opps: 2, level: 'hard', odds: true, hints: true, threat: true, quick: false, speed: 'normal', name: '' }, game: null, last: null, online: false };
+    return { v: 1, settings: { opps: 2, level: 'hard', odds: true, hints: true, threat: true, quick: false, speed: 'normal', name: '', exp: EXP0() }, game: null, last: null, online: false };
   }
   const store = (function () {
     try {
@@ -47,6 +50,9 @@
         if (!['slow', 'normal', 'fast'].includes(st.speed)) st.speed = def.speed;
         st.odds = st.odds !== false; st.hints = st.hints !== false; st.threat = st.threat !== false; st.quick = st.quick === true;
         st.name = typeof st.name === 'string' ? cut(st.name, 20) : '';
+        // game version + add-ons (settings from before them: the base game)
+        const x = st.exp && typeof st.exp === 'object' ? st.exp : {};
+        st.exp = { v: ['base', 'flight', 'climate'].includes(x.v) ? x.v : 'base', promos: (Array.isArray(x.promos) ? x.promos : []).filter(k => EvoCards.PROMOS[k]), scen: EvoCards.SCENARIOS[x.scen] ? x.scen : null };
         return out;
       }
     } catch (e) { /* private mode or bad JSON: start fresh */ }
@@ -122,7 +128,7 @@
     } catch (e) { /* notes are extras */ }
     return null;
   }
-  const fmtFood = f => (f > 0 ? '+' : '') + f;
+  const fmtFood = f => (f == null ? '–' : (f > 0 ? '+' : '') + f);
   function spName(s, id) {
     const loc = E.findSp(s, id);
     if (!loc) return 'a species';
@@ -134,12 +140,21 @@
     if (!a) return '—';
     if (a.t === 'pass') return 'Stop feeding';
     if (a.t === 'leaf') return 'Leaf traits in the best order';
-    if (a.t === 'eat') return 'Eat plant food with ' + spName(s, a.s);
+    if (a.t === 'eat') return 'Eat plant food' + (a.src === 'cliff' ? ' at the cliff' : '') + ' with ' + spName(s, a.s);
     if (a.t === 'intel') return 'Intelligence food for ' + spName(s, a.s);
+    if (a.t === 'teeth') return 'Sharp Teeth food for ' + spName(s, a.s);
+    if (a.t === 'copro') return 'Coprophagia: food from the bag for ' + spName(s, a.s);
     if (a.t === 'attack') return 'Attack ' + spName(s, a.target) + ' with ' + spName(s, a.s);
+    if (a.t === 'evdone') return 'No more events';
+    if (a.t === 'ev') return T(a.card) + (a.target != null ? ' on ' + spName(s, a.target) : a.s != null ? ' for ' + spName(s, a.s) : '');
+    if (a.t === 'mimic') return 'Mimicry copies ' + T(a.from);
+    if (a.t === 'claws') return 'Claws: Climbing this round';
+    if (a.t === 'mutate') return 'Rapid Mutation becomes ' + (a.card != null ? T(a.card) : 'nothing');
+    if (a.t === 'react') return a.card != null ? 'Play Last Stand' : 'No Last Stand';
     return a.t;
   }
   function describeMove(s, m) {
+    if (m.t === 'avian') return 'New Avian species (2 cards)';
     const t = T(m.card);
     if (m.t === 'drop') return 'Discard ' + t + ' from a species';
     if (m.t === 'species') return t + ' → new species';
@@ -224,7 +239,7 @@
       const room = await loadOnline();
       if (k === 'create') {
         const seats = ['human'].concat(new Array(store.settings.opps).fill('empty'));
-        r = await room.createRoom({ name, seats, options: { level: store.settings.level, quick: store.settings.quick } });
+        r = await room.createRoom({ name, seats, options: { level: store.settings.level, quick: store.settings.quick, exp: store.settings.exp } });
       } else r = await room.joinRoom(code, name);
     } catch (e) { r = { ok: false, message: 'Online play couldn’t load. Check your internet.' }; }
     net.connecting = false;
@@ -433,12 +448,43 @@
       '<div class="seg" data-set="opps">' + [1, 2, 3, 4, 5].map(n => '<button aria-pressed="' + (st.opps === n) + '" data-v="' + n + '">' + n + '</button>').join('') + '</div>' +
       '<div class="row"><span class="label grow">Level</span>' + qBtn(strengthNote()) + '</div>' +
       '<div class="seg" data-set="level">' + LEVELS.map(l => '<button aria-pressed="' + (st.level === l) + '" data-v="' + l + '">' + cap(l) + '</button>').join('') + '</div>' +
+      '<div class="row"><span class="label grow">Game version</span><button class="btn small ghost" data-go="addons">' + addonsLabel(st.exp) + '</button></div>' +
+      '<div class="seg" data-set="ver">' + VERSIONS.map(([k, l]) => '<button aria-pressed="' + (st.exp.v === k) + '" data-v="' + k + '"' + (k === 'climate' && !climateReady() ? ' disabled title="Coming soon"' : '') + '>' + l + (k === 'climate' && !climateReady() ? ' <span class="muted small">soon</span>' : '') + '</button>').join('') + '</div>' +
       '<button class="btn primary" data-go="start" style="width:100%">Start game</button></div>' +
       (PF() ? '<div class="row pf-row"><button class="btn grow pf-open" data-go="stats">' + window.Profile.avatarSVG(window.Profile.avatar, 22) + 'My stats</button><button class="btn grow" data-go="daily">' + (dailyDone() ? 'Daily ✓' : 'Daily game') + '</button></div>' : '') +
       '<div class="panel"><div class="row"><span class="label grow">With friends</span></div>' +
       '<button class="btn" data-on="open" style="width:100%">Play online</button></div>' +
       (store.last ? '<button class="btn ghost small" data-go="study">Review last game</button>' : '') +
       '</div>';
+  }
+  // game versions and add-ons (expansions). Climate plugs in from its own file when it is built.
+  const VERSIONS = [['base', 'Base'], ['flight', 'Base + Flight'], ['climate', 'Climate']];
+  const climateReady = () => !!(EvoCards.climateDeck || window.EvoClimate);
+  const addonsLabel = x => 'Add-ons' + (x.promos.length + (x.scen ? 1 : 0) ? ' (' + (x.promos.length + (x.scen ? 1 : 0)) + ')' : '');
+  function expName(x) {
+    x = x || EXP0();
+    const v = (VERSIONS.find(e => e[0] === x.v) || VERSIONS[0])[1];
+    const extra = (x.promos || []).map(k => EvoCards.PROMOS[k]).concat(x.scen ? [x.scen] : []);
+    return v + (extra.length ? ' · ' + extra.join(', ') : '');
+  }
+  function addonsSheet() {
+    const st = store.settings, x = st.exp;
+    const box = (k, label, note) => '<label class="row addon"><input type="checkbox" data-pp="' + k + '"' + (x.promos.indexOf(k) >= 0 ? ' checked' : '') + '><span class="grow">' + esc(label) + (note ? ' <span class="muted small">' + esc(note) + '</span>' : '') + '</span></label>';
+    sheet('Add-ons', '<div class="choices">' +
+      box('pp1', 'Promo Pack I', 'Unstable DNA') +
+      box('pp2', 'Promo Pack II', 'Last Stand, Pest, Pounce, Quills, Sharp Teeth') +
+      box('pp2x', 'Promo Pack II extras', 'estimated food numbers') +
+      box('pp3x', 'Promo Pack III traits', 'estimated food numbers') +
+      '<div class="row"><span class="label grow">Scenario</span>' + qBtn('Promo Pack III scenario cards that change one rule for the whole game. Not built: Darwinian Selection, the Climate-only scenarios and the Plant card (their full rules are not published).') + '</div>' +
+      '<select class="txt" id="scen"><option value="">None</option>' + Object.keys(EvoCards.SCENARIOS).map(k => '<option value="' + esc(k) + '"' + (x.scen === k ? ' selected' : '') + '>' + esc(k) + ' · ' + esc(EvoCards.SCENARIOS[k]) + '</option>').join('') + '</select>' +
+      '<p class="muted small" style="margin:0">Estimated: the real food numbers of these cards are not published, so they use the usual −1 to +5 spread.</p></div>');
+    const sh = $('#sheet');
+    sh.addEventListener('change', e => {
+      const t = e.target;
+      if (t.dataset.pp) { const k = t.dataset.pp; x.promos = t.checked ? x.promos.filter(p => p !== k).concat([k]) : x.promos.filter(p => p !== k); }
+      if (t.id === 'scen') x.scen = EvoCards.SCENARIOS[t.value] ? t.value : null;
+      save(); renderPlay();
+    });
   }
   function offerTutorial() {
     if (!COACH || !tour || table || ui.online || ui.tab !== 'play' || store.last || tour.seen() || COACH.offered(TUT_ID)) return;
@@ -469,7 +515,8 @@
         return '<div class="seatrow"><span class="dot" style="background:' + COLORS[i % 6] + '"></span><span class="grow">' + who + '</span>' + b + '</div>';
       }).join('');
       body = '<div class="panel" style="align-items:center;gap:4px"><span class="label">Room code</span><div class="code-big">' + esc(s.code) + '</div>' +
-        '<p class="muted small" style="margin:0;text-align:center">Friends open this site, tap Play online and type the code.</p></div>' +
+        '<p class="muted small" style="margin:0;text-align:center">Friends open this site, tap Play online and type the code.</p>' +
+        '<p class="small" style="margin:0;text-align:center">' + esc(expName(o.exp)) + '</p></div>' +
         '<div class="panel"><span class="label">Seats</span><div class="seats">' + seats + '</div>' +
         (host ? '<button class="btn primary" data-on="start" style="width:100%"' + (net.connecting ? ' disabled' : '') + '>' + (net.connecting ? 'Starting…' : 'Start') + '</button>' +
           '<p class="muted small" style="margin:0">Open seats become ' + esc(cap(o.level || 'hard')) + ' computers.</p>' :
@@ -488,6 +535,7 @@
     const seg = t.closest('[data-set] button');
     if (seg) {
       const k = seg.parentElement.dataset.set; const v = seg.dataset.v;
+      if (k === 'ver') { if (!seg.disabled) { store.settings.exp.v = v; save(); renderPlay(); } return; }
       store.settings[k] = k === 'opps' ? +v : v; save(); renderPlay(); return;
     }
     const on = t.closest('[data-on]');
@@ -514,6 +562,7 @@
     if (k === 'rules') return openRules();
     if (k === 'stats') return openStats();
     if (k === 'daily') return startDaily();
+    if (k === 'addons') return addonsSheet();
   }
   function startLocal(o) {
     o = o || {};
@@ -533,7 +582,8 @@
     } else {
       const players = [{ name: st.name || 'You', bot: null }];
       for (let i = 0; i < st.opps; i++) players.push({ name: 'Computer ' + (i + 1), bot: st.level });
-      state = E.newGame({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true });
+      // the chosen version + add-ons (the Daily game and the guided game stay the base game)
+      state = E.newGame({ seed: (Math.random() * 4294967296) >>> 0, players, quick: st.quick, stepBots: true, exp: st.exp });
     }
     store.game = meta({ state, level, daily: o.daily || null, tut: !!o.tut });
     ME = 0;
@@ -565,7 +615,29 @@
   function openRules(open) {
     if (!COACH || !TU) { rulesSheet(); return; }
     closeSheet();
-    COACH.rules(Object.assign(TU.rules(TEXT, t => A.icon(t)), { open }));
+    const r = TU.rules(TEXT, t => A.icon(t));
+    // Flight and the add-ons: one more section, before Videos
+    r.sections.splice(Math.max(0, r.sections.length - 1), 0, { id: 'flight', title: 'Flight and add-ons', short: 'Flight', html: FLIGHT_HTML() });
+    COACH.rules(Object.assign(r, { open }));
+  }
+  // the expansion rules in our own words (sources: docs/rules-check.md)
+  function FLIGHT_HTML() {
+    const tr = t => '<tr><td>' + A.icon(t) + ' <b>' + esc(t) + '</b></td><td>' + esc(TEXT[t]) + '</td></tr>';
+    const group = (title, list) => '<h4>' + title + '</h4><table>' + list.map(tr).join('') + '</table>';
+    return '<p>Pick <b>Base + Flight</b> or add-ons on the start screen (Game version).</p>' +
+      '<h4>Base + Flight</h4><ul>' +
+      '<li><b>Setup:</b> 48 more cards go in the deck. 40 cards are set aside; when the deck runs out they become the deck instead of the discards. The 12 Flight cards wait beside the deck.</li>' +
+      '<li><b>Avian species:</b> while playing cards, discard 2 cards from your hand for a new Avian board with a Flight card on it. Its body size stops at 3.</li>' +
+      '<li><b>Upkeep:</b> an Avian first eats food equal to its body size; only food after that feeds its population and scores.</li>' +
+      '<li><b>The cliff:</b> each round, when the food cards are added, the cliff gets 1 plant food per player. Only Avians eat there. Food stays on it.</li>' +
+      '<li><b>Event cards:</b> never traits. After the traits turn face up, players in turn order may discard them for their effect, then draw a card.</li>' +
+      '<li>In these games the before-food traits act player by player, from the first player.</li></ul>' +
+      group('Flight cards', ['Flight', 'Brood Parasite', 'Camouflage', 'Good Eyesight', 'Nesting', 'Dive-Bomb', 'Seed Dispersal']) +
+      '<h4>Add-ons</h4><p>Promo cards are added to the deck. Cards marked <b>estimated</b> use the usual −1 to +5 food numbers, because their real numbers are not published.</p>' +
+      group('Promo Packs I and II', ['Unstable DNA', 'Last Stand', 'Pest', 'Pounce', 'Quills', 'Sharp Teeth', 'Invasive Species', 'Rapid Mutation']) +
+      group('Promo Pack III', ['Claws', 'Coprophagia', 'Insectivore', 'Mimicry', 'Timid', 'Trampling']) +
+      '<h4>Scenarios</h4><table>' + Object.keys(EvoCards.SCENARIOS).map(k => '<tr><td><b>' + esc(k) + '</b></td><td>' + esc(EvoCards.SCENARIOS[k]) + '</td></tr>').join('') + '</table>' +
+      '<p class="tip">Not built: Evolution: Climate (coming), the Plant card, Darwinian Selection and the Climate-only scenarios.</p>';
   }
   function undoMove() {
     const g = store.game;
@@ -600,7 +672,9 @@
     if (pv && pv.round === v.round && TB && TB.animOn()) { ui.prevSp = {}; pv.players.forEach(pl => pl.species.forEach(sp => { ui.prevSp[sp.id] = sp; })); }
 
     // --- status
-    const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'leaf' ? (myTurn ? 'Order your leaf traits' : 'Reveal') : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') : '';
+    const phaseTxt = v.over ? 'Game over' : v.phase === 'food' ? 'Pick a food card' : v.phase === 'play' ? 'Play cards' : v.phase === 'leaf' ? (myTurn ? 'Order your leaf traits' : 'Reveal') : v.phase === 'feed' ? (v.turn === ME ? 'Your feeding turn' : esc(v.players[v.turn] ? v.players[v.turn].name : '') + ' is feeding') :
+      v.phase === 'event' ? (myTurn ? 'Your events' : esc(v.ev && v.players[v.ev.turn] ? v.players[v.ev.turn].name : '') + ' plays events') :
+      v.phase === 'react' ? (myTurn ? 'You are attacked' : 'Attack…') : '';
     const status = '<div class="status"><span class="pill">R' + v.round + (v.lastRound ? ' · last' : '') + '</span>' +
       '<span class="ph grow' + (myTurn && !v.over ? ' me' : '') + '">' + phaseTxt + '</span>' +
       (store.settings.hints && !v.over && myTurn && isLocal() ? '<button class="icon-btn" data-go="hint" aria-label="Hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '') +
@@ -648,7 +722,9 @@
     const holeCan = fluidMine && ui.sel != null, discCan = fluidMine && ui.sel != null;
     const hole = '<div class="hole"><div class="deckw"><div id="deck" title="Draw pile" aria-label="Draw pile: ' + v.deckSize + ' cards"></div></div>' +
       '<div class="wh' + (holeCan ? ' can' : '') + '" data-go-hole="1"><div class="pondw">' + A.pond(v.hole) + '<div class="ptoks">' + pondTokens(v.hole) + '</div><div class="hnw"><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div></div>' +
-      '<div class="fcards">' + fcards + '</div>' + oddsTxt + '</div>' +
+      '<div class="fcards">' + fcards + '</div>' + oddsTxt +
+      // Flight: the cliff (plant food only Avians may eat)
+      (v.exp && v.exp.v === 'flight' ? '<div class="cliff" title="Cliff: plant food only Avians can eat" aria-label="Cliff: ' + v.cliff + ' plant food"><b class="num">' + v.cliff + '</b><span>Cliff</span></div>' : '') + '</div>' +
       '<div class="discw' + (discCan ? ' can' : '') + '"' + (fluidMine ? ' data-disc="1"' : '') + '><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div></div>';
 
     // --- my species
@@ -799,7 +875,7 @@
   // the newest discards we know (food cards of earlier rounds), face up
   function discardCards(v) {
     // fluid play: the cards I put on the pile this turn (to grow a species) lie on top, face up
-    const mine = isFluidPlay(v, v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy)) ? ui.draft.filter(m => m.t === 'species' || m.t === 'body' || m.t === 'pop').map(m => m.card).concat(ui.grow != null ? [ui.grow] : []) : [];
+    const mine = isFluidPlay(v, v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy)) ? ui.draft.filter(m => m.t === 'species' || m.t === 'body' || m.t === 'pop' || m.t === 'avian').reduce((a, m) => a.concat(m.t === 'avian' ? m.cards : [m.card]), []).concat(ui.grow != null ? [ui.grow] : []) : [];
     if (!v.discardSize) return mine.map(id => cardFace(id));
     const cur = v.hist && v.hist[v.hist.length - 1];
     const ids = [];
@@ -845,12 +921,25 @@
     const out = { hand: v.me ? v.me.hand.slice() : [], species: E.clone(me.species), players: null, ok: [] };
     // fluid play: my planned food card and a card waiting on the discard pile are out of my hand
     if (v.phase === 'play') for (const c of [ui.food, ui.grow]) { const k = c == null ? -1 : out.hand.indexOf(c); if (k >= 0) out.hand.splice(k, 1); }
+    // Avian cards being picked (2 from the hand) are out of it too
+    if (v.phase === 'play' && ui.needCard && ui.needCard.t === 'avian') for (const c of ui.needCard.cards) { const k = out.hand.indexOf(c); if (k >= 0) out.hand.splice(k, 1); }
     let made = 0;
+    let flights = v.flightsLeft || 0;
     for (const m of ui.draft) {
-      if (m.t === 'drop') { const sp = out.species.find(x => x.id === m.s); if (sp && sp.traits.concat(sp.hidden).indexOf(m.card) >= 0) { sp.traits = sp.traits.filter(x => x !== m.card); sp.hidden = sp.hidden.filter(x => x !== m.card); out.ok.push(m); } continue; }
+      if (m.t === 'drop') { const sp = out.species.find(x => x.id === m.s); if (sp && sp.traits.concat(sp.hidden).indexOf(m.card) >= 0) { sp.traits = sp.traits.filter(x => x !== m.card); sp.hidden = sp.hidden.filter(x => x !== m.card); if (T(m.card) === 'Flight') { sp.av = false; sp.up = 0; flights++; } out.ok.push(m); } continue; }
+      if (m.t === 'avian') {
+        // Flight: 2 cards from the hand make an Avian board with a Flight card on it
+        const cs = m.cards || [];
+        if (cs.length !== 2 || cs.some(c => out.hand.indexOf(c) < 0) || flights < 1) continue;
+        for (const c of cs) out.hand.splice(out.hand.indexOf(c), 1);
+        out.ok.push(m); made++; flights--;
+        const ns = { id: -made, body: 1, pop: newPop(v), food: 0, fat: 0, traits: [EvoCards.FLIGHT_CARDS[flights]], hidden: [], fresh: true, av: true, up: 0 };
+        if (m.side === 'L') out.species.unshift(ns); else out.species.push(ns);
+        continue;
+      }
       const k = out.hand.indexOf(m.card);
       if (k < 0) continue;
-      if (m.t === 'species') { out.hand.splice(k, 1); out.ok.push(m); made++; const ns = { id: -made, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [], fresh: true }; if (m.side === 'L') out.species.unshift(ns); else out.species.push(ns); continue; }
+      if (m.t === 'species') { out.hand.splice(k, 1); out.ok.push(m); made++; const ns = { id: -made, body: 1, pop: newPop(v), food: 0, fat: 0, traits: [], hidden: [], fresh: true }; if (m.side === 'L') out.species.unshift(ns); else out.species.push(ns); continue; }
       const sp = out.species.find(x => x.id === m.s);
       if (!sp || !canPlayOn(sp, m.card, m.t, v.maxTraits)) continue;
       out.hand.splice(k, 1); out.ok.push(m);
@@ -868,33 +957,42 @@
     if (picked && ui.sel != null && v.phase === 'food') return DECK[ui.sel].food;
     return 0;
   }
+  // Teeming Hordes (scenario): new species start at population 2
+  const newPop = v => (v && v.exp && v.exp.scen === 'Teeming Hordes' ? 2 : 1);
   function canPlayOn(sp, card, mode, max) {
-    if (mode === 'body') return sp.body < E.MAX;
+    if (mode === 'body') return sp.body < E.maxBody(sp);
     if (mode === 'pop') return sp.pop < E.MAX;
+    if (isEvCard(card)) return false; // event cards are never traits
     const list = sp.traits.concat(sp.hidden);
     return list.length < (max || curMax()) && !list.some(id => id >= 0 && T(id) === T(card));
   }
   function curMax() { try { return curView().maxTraits || 3; } catch (e) { return 3; } }
   // rebuild a minimal engine-like state from a view (online: for option lists on my own turn)
   function rebuildFor(v) {
-    return { hole: v.hole, players: v.players.map((pl, p) => ({ hand: p === ME && v.me ? v.me.hand.slice() : new Array(pl.handSize).fill(0), species: pl.species.map(sp => Object.assign({}, sp, { hidden: [] })) })) };
+    return { hole: v.hole, cliff: v.cliff || 0, exp: v.exp, first: v.first, mut: v.mut || null, mimicked: v.mimicked || null,
+      players: v.players.map((pl, p) => ({ hand: p === ME && v.me ? v.me.hand.slice() : new Array(pl.handSize).fill(0), bag: p === ME && v.me ? v.me.bag : pl.bag || 0, species: pl.species.map(sp => Object.assign({}, sp, { hidden: [] })) })) };
   }
 
   function bigSp(sp, i, v, o) {
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
     const fatT = sp.traits.some(id => T(id) === 'Fat Tissue');
     let slots = '';
+    // Avian (Flight): first the upkeep spaces (food equal to its body size, never scored), then the population
+    if (sp.av) for (let k = 0; k < sp.body; k++) slots += k < (sp.up || 0) ? '<i class="ftk up' + (carn ? ' meat' : '') + '"></i>' : '<span class="slot upslot"></span>';
     for (let k = 0; k < sp.pop; k++) slots += k < sp.food ? '<i class="ftk' + (carn ? ' meat' : '') + '"></i>' : '<span class="slot"></span>';
     if (fatT) for (let k = 0; k < sp.body; k++) slots += k < sp.fat ? '<i class="ftk fat"></i>' : '<span class="slot fatslot"></span>';
     const nTr = sp.traits.length + sp.hidden.length;
     const trs = sp.traits.map(id => traitChip(id, false, o.flip)).concat(sp.hidden.map(id => traitChip(id, true, null, !!o.planned && o.planned.indexOf(id) >= 0))).join('') +
+      (sp.tmp || []).map(tmpChip).join('') + // this round only (Mimicry, Claws)
       '<div class="tr empty"></div>'.repeat(Math.max(0, Math.min(3, v.maxTraits || 3) - nTr)); // open trait slots
-    const cls = ['sp', carn ? 'carnivore' : '', o.can ? 'can' : '', o.prey && !o.tgt ? 'prey' : '', o.sel ? 'sel' : '', o.tgt ? 'sel tgt' : '', sp.food >= sp.pop && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
+    const cls = ['sp', carn ? 'carnivore' : '', sp.av ? 'avian' : '', o.can ? 'can' : '', o.prey && !o.tgt ? 'prey' : '', o.sel ? 'sel' : '', o.tgt ? 'sel tgt' : '', E.needFood(sp) === 0 && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
     return '<div class="' + cls + '" data-sp="' + sp.id + '">' +
       (o.danger && store.settings.threat ? '<span class="flag danger" title="Carnivores that can eat it">' + o.danger + '</span>' : '') +
       (o.eats && store.settings.threat ? '<span class="flag carn" title="Species it can eat">' + o.eats + '</span>' : '') +
-      '<div class="trs">' + trs + '</div><div class="board"><div class="fr">' + slots + '</div>' + track('Body', 'b', sp.body, o.trk) + track('Pop', 'p', sp.pop, o.trk) + '</div></div>';
+      '<div class="trs">' + trs + '</div><div class="board"><div class="fr">' + slots + '</div>' + track('Body', 'b', sp.body, o.trk, E.maxBody(sp)) + track('Pop', 'p', sp.pop, o.trk) + '</div></div>';
   }
+  // a trait held for this round only (Mimicry's copy, Claws' Climbing): dashed, no card behind it
+  function tmpChip(t) { return '<div class="tr tmp" style="' + famStyle(t) + '" title="This round only">' + A.icon(t) + '<span>' + tName(t) + '</span></div>'; }
   // traits of this species that were face down on the last drawn table and are face up now
   function flipped(sp) {
     const a = ui.prevSp && ui.prevSp[sp.id];
@@ -903,10 +1001,11 @@
   }
   // a 1-6 track printed on the board with a wooden cube on the current space
   // (glow: fluid play, a card waits on the discard pile and this track can take +1)
-  function track(label, k, n, glow) {
+  function track(label, k, n, glow, max) {
+    max = max || E.MAX; // an Avian's body track stops at 3 (the spaces past it are greyed)
     let cells = '';
-    for (let i = 1; i <= 6; i++) cells += i === n ? '<i class="on"><b class="cube ' + k + '">' + i + '</b></i>' : '<i>' + i + '</i>';
-    return '<div class="trk' + (glow && n < E.MAX ? ' can' : '') + '" data-trk="' + k + '" aria-label="' + label + ' ' + n + '"><span class="tl">' + label + '</span>' + cells + '</div>';
+    for (let i = 1; i <= 6; i++) cells += i === n ? '<i class="on"><b class="cube ' + k + '">' + i + '</b></i>' : '<i' + (i > max ? ' class="off"' : '') + '>' + i + '</i>';
+    return '<div class="trk' + (glow && n < max ? ' can' : '') + '" data-trk="' + k + '" aria-label="' + label + ' ' + n + '"><span class="tl">' + label + '</span>' + cells + '</div>';
   }
   // a trait card tucked above a board (only its top shows); flip = it just turned face up;
   // planned = my own card played this turn and not sent yet (tap it to take it back)
@@ -920,12 +1019,14 @@
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
     const fatT = sp.traits.some(id => T(id) === 'Fat Tissue');
     let dots = '';
+    if (sp.av) for (let k = 0; k < sp.body; k++) dots += '<i class="up' + (k < (sp.up || 0) ? ' on' + (carn ? ' meat' : '') : '') + '"></i>';
     for (let k = 0; k < sp.pop; k++) dots += '<i class="' + (k < sp.food ? 'on' + (carn ? ' meat' : '') : '') + '"></i>';
     if (fatT) for (let k = 0; k < sp.fat; k++) dots += '<i class="fat"></i>';
     const flip = flipped(sp);
-    const ics = sp.traits.map(id => '<span class="ic' + (flip.indexOf(id) >= 0 ? ' flipin' : '') + '" style="' + famStyle(T(id)) + '" title="' + esc(T(id)) + '">' + A.icon(T(id)) + '</span>').join('') + sp.hidden.map(() => '<span class="hidden" title="Face down"></span>').join('');
+    const ics = sp.traits.map(id => '<span class="ic' + (flip.indexOf(id) >= 0 ? ' flipin' : '') + '" style="' + famStyle(T(id)) + '" title="' + esc(T(id)) + '">' + A.icon(T(id)) + '</span>').join('') + sp.hidden.map(() => '<span class="hidden" title="Face down"></span>').join('') +
+      (sp.tmp || []).map(t => '<span class="ic tmp" style="' + famStyle(t) + '" title="' + esc(t) + ' (this round)">' + A.icon(t) + '</span>').join('');
     const can = ui.feedSel != null && v.phase === 'feed' && v.turn === ME && isTarget(sp.id);
-    return '<div class="msp' + (carn ? ' carnivore' : '') + (can ? ' can' : '') + (ui.target === sp.id ? ' tgt' : '') + '" data-sp="' + sp.id + '" data-owner="' + p + '"><div class="ics">' + ics + '</div>' +
+    return '<div class="msp' + (carn ? ' carnivore' : '') + (sp.av ? ' avian' : '') + (can ? ' can' : '') + (ui.target === sp.id ? ' tgt' : '') + '" data-sp="' + sp.id + '" data-owner="' + p + '"><div class="ics">' + ics + '</div>' +
       '<div class="mb"><div class="bp" aria-label="Body ' + sp.body + ', population ' + sp.pop + '"><b class="cube b">' + sp.body + '</b><b class="cube p">' + sp.pop + '</b></div><div class="fdots">' + dots + '</div></div></div>';
   }
   function isTarget(id) {
@@ -944,6 +1045,21 @@
       if (v.phase === 'play' && !v.quick && who.length) return '<span class="msg"><b>' + esc(who[0]) + '</b> is playing cards…</span>';
       return '<span class="msg">Waiting for <b>' + esc(who.slice(0, 2).join(', ') || 'the table') + (who.length > 2 ? ' +' + (who.length - 2) : '') + '</b>…</span>';
     }
+    // expansion card picks (Avian, Sharp Teeth, event cards): tap cards in the hand to discard
+    if (ui.needCard && ui.needCard.n) {
+      const n = ui.needCard, left = n.n - n.cards.length;
+      return '<span class="msg"><b>Pick ' + left + ' card' + (left > 1 ? 's' : '') + '</b> to discard' + (n.label ? ' (' + esc(n.label) + ')' : '') + '</span><button class="btn" data-act="cancel">Cancel</button>';
+    }
+    if (v.phase === 'event') {
+      const eo = E.eventOptions(optState(v), ME);
+      if (eo.some(o => o.t === 'mutate')) return '<span class="msg"><b>Rapid Mutation:</b> swap it for a card in your hand.</span><button class="btn primary" data-act="events">Choose</button>';
+      const n = eo.filter(o => o.t !== 'evdone').length;
+      return '<span class="msg"><b>' + n + '</b> event play' + (n === 1 ? '' : 's') + ' possible.</span><button class="btn" data-act="events">Events</button><button class="btn primary" data-act="evdone">Done</button>';
+    }
+    if (v.phase === 'react') {
+      const P = v.pending, at = P && findInView(v, P.c), tg = P && findInView(v, P.t);
+      return '<span class="msg"><b>' + esc(at ? v.players[at.p].name : '?') + '</b> attacks your ' + (tg ? tg.sp.body + '/' + tg.sp.pop : '') + '. Last Stand?</span><button class="btn" data-act="nostand">Let it</button><button class="btn red" data-act="stand">Last Stand</button>';
+    }
     if (v.phase === 'food') {
       // no cards at all (the deck and the discards ran dry): nothing to place, the round goes on
       if (!dv.hand.length) return '<span class="msg"><b>No cards</b> to place as food.</span><button class="btn primary" data-act="nofood">Go on</button>';
@@ -958,8 +1074,8 @@
       const n = ui.draft.length + (ui.food != null ? 1 : 0);
       const needFood = !!(v.me && v.me.hand.length) && ui.food == null;
       const undo = n ? '<button class="btn" data-act="undo">Undo</button>' : '';
-      if (needFood) return undo + '<span class="msg"><b>Put a food card</b> at the watering hole.</span><button class="btn primary" data-act="done" disabled>Done</button>';
-      return (undo || '<span class="msg">' + (v.me && v.me.hand.length ? 'Tap a card to play it.' : '<b>No cards</b> to play.') + '</span>') +
+      if (needFood) return undo + '<span class="msg"><b>Put a food card</b> at the watering hole.</span>' + avianBtn(v, dv) + '<button class="btn primary" data-act="done" disabled>Done</button>';
+      return (undo || '<span class="msg">' + (v.me && v.me.hand.length ? 'Tap a card to play it.' : '<b>No cards</b> to play.') + '</span>') + avianBtn(v, dv) +
         '<button class="btn primary" data-act="done">' + (n ? 'Done (' + n + ')' : 'Done') + '</button>';
     }
     if (v.phase === 'play') {
@@ -967,7 +1083,7 @@
       if (ui.sel != null) {
         return '<div class="seg grow" data-mode>' + [['trait', 'Trait'], ['body', 'Body +1'], ['pop', 'Pop +1']].map(([k, l]) => '<button aria-pressed="' + (ui.mode === k) + '" data-mode="' + k + '">' + l + '</button>').join('') + '</div>' + infoBtn();
       }
-      return (n ? '<button class="btn" data-act="undo">Undo</button>' : '<span class="msg">Tap a card, then a species. <b>+</b> makes a new one.</span>') +
+      return (n ? '<button class="btn" data-act="undo">Undo</button>' : '<span class="msg">Tap a card, then a species. <b>+</b> makes a new one.</span>') + avianBtn(v, dv) +
         '<button class="btn primary" data-act="done">' + (n ? 'Done (' + n + ')' : 'Done') + '</button>';
     }
     if (v.phase === 'leaf') {
@@ -985,10 +1101,14 @@
       const sp = dv.species.find(x => x.id === ui.feedSel);
       const opts = fo.filter(o => o.s === ui.feedSel);
       const btns = [];
-      const eat = opts.find(o => o.t === 'eat');
-      if (eat) btns.push('<button class="btn primary" data-act="eat">Eat ' + Math.min(sp && sp.traits.some(id => T(id) === 'Foraging') ? 2 : 1, v.hole) + '</button>');
+      const forage = sp && sp.traits.some(id => T(id) === 'Foraging') ? 2 : 1;
+      const eat = opts.find(o => o.t === 'eat' && !o.src);
+      if (eat) btns.push('<button class="btn primary" data-act="eat">Eat ' + Math.min(forage, v.hole) + '</button>');
+      if (opts.some(o => o.t === 'eat' && o.src === 'cliff')) btns.push('<button class="btn' + (eat ? '' : ' primary') + '" data-act="eatcliff">Cliff ' + Math.min(forage, v.cliff || 0) + '</button>');
       const intel = opts.find(o => o.t === 'intel');
       if (intel) btns.push('<button class="btn" data-act="intel">Smart +2</button>');
+      if (opts.some(o => o.t === 'teeth')) btns.push('<button class="btn" data-act="teeth">Teeth +1</button>');
+      if (opts.some(o => o.t === 'copro')) btns.push('<button class="btn" data-act="copro">From bag</button>');
       if (opts.some(o => o.t === 'attack')) {
         if (ui.target == null) return '<span class="msg"><b>Tap a species to attack.</b> Outlined = can be eaten.</span><button class="btn" data-act="cancel">Cancel</button>';
         const att = opts.find(o => o.target === ui.target);
@@ -999,6 +1119,15 @@
       return btns.join('') + '<button class="btn" data-act="cancel">Cancel</button>';
     }
     return '';
+  }
+  // the state option lists are read from: the real game here, a rebuilt one from the view online
+  const optState = v => (table.online ? rebuildFor(v) : table.game.state);
+  // Flight: a new Avian species costs 2 cards (button shown while Flight cards and 2 spare cards are left)
+  function avianBtn(v, dv) {
+    if (!v.exp || v.exp.v !== 'flight' || v.maxTraits < 1) return '';
+    const left = (v.flightsLeft || 0) - ui.draft.filter(m => m.t === 'avian').length;
+    // fluid play: one more card must stay for the food card
+    return left > 0 && dv.hand.length >= (v.fluid && ui.food == null ? 3 : 2) ?'<button class="btn" data-act="avian">Avian</button>' : '';
   }
   function findInView(v, id) {
     for (let p = 0; p < v.players.length; p++) { const sp = v.players[p].species.find(x => x.id === id); if (sp) return { p, sp }; }
@@ -1114,7 +1243,7 @@
         const dv = draftView(v);
         const sp = dv.species.find(x => x.id === id);
         if (!sp) return;
-        if (!canPlayOn(sp, ui.sel, ui.mode)) { sfx('error'); if (FXL) FXL.shake(spEl); toast(ui.mode === 'trait' ? (sp.traits.length + sp.hidden.length >= curMax() ? 'At most ' + curMax() + ' traits per species' : 'It already has that trait') : 'Already at 6'); return; }
+        if (!canPlayOn(sp, ui.sel, ui.mode)) { sfx('error'); if (FXL) FXL.shake(spEl); toast(ui.mode === 'trait' ? (isEvCard(ui.sel) ? 'Event cards are never traits' : sp.traits.length + sp.hidden.length >= curMax() ? 'At most ' + curMax() + ' traits per species' : 'It already has that trait') : 'Already at ' + (ui.mode === 'body' ? E.maxBody(sp) : 6)); return; }
         // trait: tucked face down under the board; body / population: the board grows
         const mode = ui.mode;
         sfx(mode === 'trait' ? 'tuck' : 'grow', mode === 'body' ? { pitch: 0.85 } : undefined);
@@ -1129,7 +1258,7 @@
           ui.feedSel = id; ui.target = null;
           const opts = fo.filter(o => o.s === id);
           // a plant eater with only one way to eat: eat right away (one tap)
-          if (opts.length === 1 && opts[0].t === 'eat') { send({ t: 'eat', s: id }); return; }
+          if (opts.length === 1 && opts[0].t === 'eat') { send(Object.assign({ t: 'eat', s: id }, opts[0].src ? { src: opts[0].src } : {})); return; }
           renderPlay(); return;
         }
       }
@@ -1159,7 +1288,7 @@
       if (trk) {
         const kind = trk.dataset.trk === 'b' ? 'body' : 'pop';
         const sp = draftView(v).species.find(x => x.id === id);
-        if (!sp || !canPlayOn(sp, card, kind)) { sfx('error'); if (FXL) FXL.shake(spEl); toast('Already at 6'); return true; }
+        if (!sp || !canPlayOn(sp, card, kind)) { sfx('error'); if (FXL) FXL.shake(spEl); toast('Already at ' + (sp && kind === 'body' ? E.maxBody(sp) : 6)); return true; }
         growOn({ t: kind, card, s: id }, spEl);
         return true;
       }
@@ -1194,12 +1323,13 @@
     if (!m) return;
     const gone = new Set([i]);
     let k = 0;
-    if (m.t === 'species') {
-      k = ui.draft.slice(0, i + 1).filter(x => x.t === 'species').length;
-      ui.draft.forEach((x, j) => { if (x.t !== 'species' && x.s === -k) gone.add(j); });
+    const makes = x => x.t === 'species' || x.t === 'avian'; // moves that put down a new board
+    if (makes(m)) {
+      k = ui.draft.slice(0, i + 1).filter(makes).length;
+      ui.draft.forEach((x, j) => { if (!makes(x) && x.s === -k) gone.add(j); });
     }
     const early = [...gone].filter(j => j < ui.foodAt).length;
-    ui.draft = ui.draft.filter((x, j) => !gone.has(j)).map(x => (k && x.t !== 'species' && typeof x.s === 'number' && x.s < -k ? Object.assign({}, x, { s: x.s + 1 }) : x));
+    ui.draft = ui.draft.filter((x, j) => !gone.has(j)).map(x => (k && !makes(x) && typeof x.s === 'number' && x.s < -k ? Object.assign({}, x, { s: x.s + 1 }) : x));
     // a play that only fit because of the one taken back (say, a freed trait slot) comes back too
     const before = ui.draft.length;
     ui.draft = draftView(curView()).ok;
@@ -1211,7 +1341,7 @@
     const dv = draftView(v);
     const where = id => { const i = dv.species.findIndex(x => x.id === id); return dv.species.length > 1 && i >= 0 ? ' · species ' + (i + 1) : ''; };
     const rows = (ui.food != null ? [['food', 'Food card: ' + T(ui.food) + ' (' + fmtFood(DECK[ui.food].food) + ')']] : [])
-      .concat(ui.draft.map((m, i) => [i, describeMove(null, m) + (m.t !== 'species' ? where(m.s) : '')]));
+      .concat(ui.draft.map((m, i) => [i, describeMove(null, m) + (m.t !== 'species' && m.t !== 'avian' ? where(m.s) : '')]));
     sheet('Your plays this turn', rows.length ? '<div class="choices">' + rows.map(([k, txt]) => '<div class="row" style="gap:8px"><span class="grow small">' + esc(txt) + '</span><button class="btn small" data-tb="' + k + '">Take back</button></div>').join('') + '</div>' :
       '<p class="muted small" style="margin-top:0">Nothing played yet this turn.</p>', e => {
       const b = e.target.closest('[data-tb]');
@@ -1259,7 +1389,17 @@
     if (k === 'leafmore') { leafSheet(v); return; }
     if (k === 'cancel') { ui.feedSel = null; ui.target = null; ui.needCard = null; ui.sel = null; renderPlay(); return; }
     if (k === 'eat') { send({ t: 'eat', s: ui.feedSel }); return; }
+    if (k === 'eatcliff') { send({ t: 'eat', s: ui.feedSel, src: 'cliff' }); return; }
+    if (k === 'copro') { send({ t: 'copro', s: ui.feedSel }); return; }
+    if (k === 'teeth') { needCards({ t: 'teeth', s: ui.feedSel }, 'card', 1, 'Sharp Teeth'); return; }
     if (k === 'intel') { ui.needCard = { t: 'intel', s: ui.feedSel }; renderPlay(); return; }
+    // Flight: a new Avian (2 cards from the hand go to the discard pile)
+    if (k === 'avian') { ui.sel = null; ui.grow = null; ui.needCard = { t: 'avian', n: 2, cards: [], label: 'new Avian' }; renderPlay(); return; }
+    // the event step and Last Stand
+    if (k === 'events') { eventSheet(v); return; }
+    if (k === 'evdone') { send({ t: 'evdone' }); return; }
+    if (k === 'nostand') { send({ t: 'react', card: null }); return; }
+    if (k === 'stand') { const c = v.me && v.me.hand.find(id => T(id) === 'Last Stand'); send({ t: 'react', card: c != null ? c : null }); return; }
     if (k === 'attack') {
       const fo = table.online ? E.feedOptions(rebuildFor(v), ME) : E.feedOptions(table.game.state, ME);
       const o = fo.find(x => x.t === 'attack' && x.s === ui.feedSel && x.target === ui.target);
@@ -1282,8 +1422,51 @@
     });
   }
   // Intelligence: collect the cards to discard (1 for food, one per switched-off trait for an attack)
+  // collect n cards for action a (a[key] = the card, or the list of cards); 0 cards = send at once
+  function needCards(a, key, n, label) {
+    if (!n) { send(a); return; }
+    ui.needCard = { t: 'x', a, key, n, cards: [], label };
+    renderPlay();
+  }
+  // the event step: every event play I can make now, one button each
+  function eventSheet(v) {
+    const eo = E.eventOptions(optState(v), ME).filter(o => o.t !== 'evdone');
+    const nm = id => { const l = findInView(v, id); return l ? (l.p === ME ? 'your' : esc(v.players[l.p].name) + '’s') + ' ' + l.sp.body + '/' + l.sp.pop : '?'; };
+    const label = o => {
+      if (o.t === 'mutate') return o.card != null ? 'Rapid Mutation becomes <b>' + esc(T(o.card)) + '</b>' : 'Rapid Mutation: discard it (no card fits)';
+      if (o.t === 'mimic') return 'Mimicry on ' + nm(o.s) + ' copies <b>' + esc(T(o.from)) + '</b>';
+      if (o.t === 'claws') return 'Claws on ' + nm(o.s) + ': discard a card for Climbing';
+      const t = T(o.card);
+      if (t === 'Seed Dispersal') return '<b>Seed Dispersal</b>: +1 plant food per Avian';
+      if (t === 'Invasive Species') return '<b>Invasive Species</b> on ' + nm(o.s);
+      if (o.target != null) return '<b>' + esc(t) + '</b>: ' + nm(o.s) + ' attacks ' + nm(o.target) + (o.ignore && o.ignore.length ? ' (ignores ' + esc(o.ignore.join(', ')) + ')' : '');
+      return '<b>' + esc(t) + '</b>: ' + nm(o.s) + ' takes 2 plant food from the ' + (o.src === 'hole' ? 'watering hole' : o.src);
+    };
+    sheet(eo.some(o => o.t === 'mutate') ? 'Rapid Mutation' : 'Events', '<div class="choices">' + eo.map((o, i) => '<button class="btn" data-eo="' + i + '" style="height:auto;padding:8px 12px;justify-content:flex-start;text-align:left"><span>' + label(o) + '</span></button>').join('') + '</div>', e => {
+      const b = e.target.closest('[data-eo]');
+      if (!b) return;
+      const o = eo[+b.dataset.eo];
+      closeSheet();
+      const hand = (v.me && v.me.hand) || [];
+      if (o.t === 'mutate') { const rest = hand.filter(c => c !== o.card); needCards(Object.assign({}, o), 'discard', Math.min(2, rest.length), 'Rapid Mutation'); return; }
+      if (o.t === 'claws') { needCards(Object.assign({}, o), 'card', 1, 'Claws'); return; }
+      send(Object.assign({}, o));
+    });
+  }
   function pickDiscard(card) {
     const n = ui.needCard;
+    if (n.t === 'avian') {
+      // the two cards become an Avian board (planned, like any other play this turn)
+      n.cards.push(card);
+      if (n.cards.length >= 2) { sfx('place'); ui.draft.push({ t: 'avian', cards: n.cards.slice(), side: 'R' }); ui.needCard = null; }
+      renderPlay(); return;
+    }
+    if (n.t === 'x') {
+      if (n.a.t === 'mutate' && card === n.a.card) return; // the card it becomes can't also be discarded
+      if (n.cards.indexOf(card) >= 0) n.cards = n.cards.filter(c => c !== card); else n.cards.push(card);
+      if (n.cards.length >= n.n) { const a = Object.assign({}, n.a, { [n.key]: n.key === 'card' ? n.cards[0] : n.cards.slice() }); ui.needCard = null; send(a); return; }
+      renderPlay(); return;
+    }
     if (n.t === 'intel') { send({ t: 'intel', s: n.s, card }); return; }
     if (n.cards.indexOf(card) >= 0) n.cards = n.cards.filter(c => c !== card); else n.cards.push(card);
     if (n.cards.length >= n.ignore.length) { send({ t: 'attack', s: n.s, target: n.target, ignore: n.ignore, cards: n.cards.slice() }); return; }
@@ -1314,7 +1497,7 @@
       return;
     }
     toast('Hard computer: ' + describe(s, a).replace(/<[^>]+>/g, ''));
-    if (a.s != null) { ui.feedSel = a.s; ui.target = a.target != null ? a.target : null; renderPlay(); }
+    if (a.s != null && s.phase === 'feed') { ui.feedSel = a.s; ui.target = a.target != null ? a.target : null; renderPlay(); }
   }
 
   function openMenu() {
@@ -1334,7 +1517,7 @@
     });
   }
   function rulesSheet() {
-    sheet('How to play', '<div class="small" style="display:flex;flex-direction:column;gap:8px">' + RULES_HTML + '</div>');
+    sheet('How to play', '<div class="small" style="display:flex;flex-direction:column;gap:8px">' + RULES_HTML + FLIGHT_HTML() + '</div>');
   }
   const RULES_HTML =
     '<p style="margin:0"><b>Goal:</b> most points at the end = food eaten + population of living species + traits on living species.</p>' +
@@ -1378,8 +1561,15 @@
   const vLab = $('#v-lab');
   function traitStatsHtml(t) {
     const L = window.EvoLab;
-    const foods = FOOD[t] || [];
-    let html = '<p class="small" style="margin:6px 0">' + foods.length + ' cards in the deck. Food numbers: ' + foods.slice().sort((a, b) => a - b).map(fmtFood).join(', ') + '.</p>';
+    if (t === 'Flight') return '<p class="small" style="margin:6px 0">12 Flight cards, kept beside the deck: one goes on each Avian board.</p>';
+    // base traits: the base deck; expansion traits: their own set (Carnivore adds 6 in Flight)
+    const base = FOOD[t] || [];
+    const extra = DECK.filter(c => c.set && c.trait === t && c.food != null);
+    const foods = base.length ? base : extra.map(c => c.food);
+    let html = '<p class="small" style="margin:6px 0">' + foods.length + ' cards in the ' + (base.length ? 'base ' : '') + 'deck. Food numbers: ' + foods.slice().sort((a, b) => a - b).map(fmtFood).join(', ') + '.' +
+      (base.length && extra.length ? ' Flight adds ' + extra.length + ': ' + extra.map(c => fmtFood(c.food)).join(', ') + '.' : '') +
+      (extra.length && extra[0].est ? ' <span class="muted">(estimated food numbers)</span>' : '') +
+      (extra.length && extra[0].event ? ' Event card: played from the hand, never as a trait.' : '') + '</p>';
     if (L && L.traits[t]) {
       const x = L.traits[t];
       html += '<p class="small" style="margin:4px 0">In ' + L.games + ' Hard-vs-Hard games, a species with ' + esc(t) + ' ate <b>' + x.food.toFixed(2) + '</b> food a round (all species: ' + L.base.food.toFixed(2) + ') and lived <b>' + x.life.toFixed(1) + '</b> rounds (all: ' + L.base.life.toFixed(1) + ').</p>';
@@ -1505,7 +1695,7 @@
     return { ok: !why, why };
   }
   function foodHtml() {
-    const all = DECK.map(c => c.food);
+    const all = BASE_DECK.map(c => c.food);
     const vals = [...new Set(all)].sort((a, b) => a - b);
     const cnt = vals.map(x => all.filter(y => y === x).length);
     const mx = Math.max(...cnt);
@@ -1517,7 +1707,7 @@
       '<text x="' + (i * bw + bw / 2).toFixed(1) + '" y="' + (H - cnt[i] / mx * H - 3).toFixed(1) + '" fill="#e8eaf0" font-size="9" text-anchor="middle">' + cnt[i] + '</text>').join('') + '</svg>';
     const byN = [2, 3, 4, 5, 6].map(n => { const d = O.sumDist(all, n); const m = d.reduce((a, x) => a + x.sum * x.p, 0); const p0 = d.reduce((a, x) => a + (x.sum <= 0 ? x.p : 0), 0); return { n, m, p0 }; });
     return '<div class="panel"><div class="row"><span class="label grow">Food numbers in the deck</span>' + qBtn('Every card has a food number. The cards placed at the watering hole each round add up to the plant food for that round.') + '</div>' +
-      '<div class="chart" style="margin-top:8px">' + svg + '</div><p class="small" style="margin:6px 0 0">' + DECK.length + ' cards · average <b>' + fmtFood(+mean.toFixed(2)) + '</b> per card</p></div>' +
+      '<div class="chart" style="margin-top:8px">' + svg + '</div><p class="small" style="margin:6px 0 0">' + BASE_DECK.length + ' cards · average <b>' + fmtFood(+mean.toFixed(2)) + '</b> per card</p></div>' +
       '<div class="panel"><div class="row"><span class="label grow">Plant food per round</span>' + qBtn('If every player picked a random card as food. Exact math over the whole deck.') + '</div>' +
       '<table class="turns"><tr><th>Players</th><th>Average food</th><th>No food at all</th>' + (L && L.holeByN ? '<th>Hard computers</th>' : '') + '</tr>' + byN.map(x => '<tr><td>' + x.n + '</td><td class="n">' + x.m.toFixed(1) + '</td><td class="n">' + pct(x.p0) + '</td>' + (L && L.holeByN && L.holeByN[x.n] != null ? '<td class="n">' + L.holeByN[x.n].toFixed(1) + '</td>' : (L && L.holeByN ? '<td></td>' : '')) + '</tr>').join('') + '</table></div>';
   }

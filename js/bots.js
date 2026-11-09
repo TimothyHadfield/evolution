@@ -10,9 +10,12 @@
   else root.EvoBots = factory(root.EvoCards, root.EvoEngine);
 })(typeof self !== 'undefined' ? self : this, function (Cards, E) {
   'use strict';
-  const { DECK } = Cards;
-  const T = id => DECK[id].trait;
+  const { DECK } = Cards;                       // the base deck (food averages)
+  const ALL = Cards.ALL;                        // every card id, expansions included
+  const T = id => ALL[id].trait;
+  const FOODN = id => ALL[id].food || 0;
   const has = E.has;
+  const isEv = id => Cards.isEvent(id);
 
   // a tiny private random stream so bots never touch the game's seed
   function brng(s, p, salt) {
@@ -80,6 +83,28 @@
       case 'Defensive Herding': v += thr * 1.0; break;
       case 'Symbiosis': v += row[i + 1] && row[i + 1].body > sp.body ? thr * 1.2 : 0; break;
       case 'Warning Call': v += ((row[i - 1] ? threat(s, p, i - 1) : 0) + (row[i + 1] ? threat(s, p, i + 1) : 0)) * 0.9; break;
+      // expansions (Flight, promo packs)
+      case 'Camouflage': v += thr * 1.3; break;
+      case 'Good Eyesight': {
+        let cam = 0;
+        s.players.forEach((pl, q) => { if (q !== p) pl.species.forEach(x => { if (has(x, 'Camouflage')) cam++; }); });
+        v += carn ? cam * 0.8 - 0.3 : 1.0;
+        break;
+      }
+      case 'Nesting': v += sp.av ? 1.1 : 0.6; break;
+      case 'Brood Parasite': v += sp.av && row.some(x => x !== sp && x.av) ? 1.3 : -1.5; break;
+      case 'Unstable DNA': v += 0.8; break;
+      case 'Pest': v += carn ? -1 : 0.3; break;
+      case 'Quills': v += thr * 1.0; break;
+      case 'Sharp Teeth': v += carn ? 0.8 : 0.5; break;
+      case 'Rapid Mutation': v += 0.2; break;
+      case 'Claws': v += carn ? 1.0 : thr * 0.6; break;
+      case 'Coprophagia': v += carn ? -1 : 0.3; break;
+      case 'Insectivore': v += 1.0; break;
+      case 'Mimicry': v += 0.5; break;
+      case 'Timid': v += carn ? -1 : thr * 1.8 - 0.3; break;
+      case 'Trampling': v += carn ? -1 : 0.2; break;
+      case 'Flight': case 'Dive-Bomb': case 'Seed Dispersal': case 'Last Stand': case 'Pounce': case 'Invasive Species': return -5; // never a trait from the hand
     }
     return v;
   }
@@ -97,7 +122,8 @@
       const t = T(id);
       let keep = 0.6;
       pl.species.forEach((sp, i) => { if (!E.has(sp, t)) keep = Math.max(keep, traitValue(s, p, sp, i, t, lv)); });
-      const f = DECK[id].food;
+      if (isEv(id)) keep = 1.4; // event cards are kept to play
+      const f = FOODN(id);
       const v = keep - (lv === 'hard' ? 0.25 : 0.15) * f * (herb >= carnPop ? 1 : -0.6);
       if (v < bv) { bv = v; best = id; }
     }
@@ -131,6 +157,7 @@
       const nSp = pl.species.length;
       for (const card of pl.hand) {
         const t = T(card);
+        if (isEv(card)) continue; // event cards are kept for the event step
         // new species
         const vNew = (nSp < 2 ? 2.4 : nSp < 4 ? 1.6 - 0.25 * nSp : 0.3) * (out > 1 ? 1 : 0.6);
         if (vNew > bv) { bv = vNew; best = { t: 'species', card, side: 'R' }; }
@@ -143,7 +170,7 @@
             if (vp > bv) { bv = vp; best = { t: 'pop', card, s: sp.id }; }
           }
           // body size: escape a carnivore, or a carnivore that bites bigger
-          if (sp.body < E.MAX) {
+          if (sp.body < E.maxBody(sp)) {
             let vb = 0.25;
             if (lv === 'hard') {
               for (const c of carnivores(s, p)) {
@@ -163,9 +190,25 @@
           }
         });
       }
+      // Flight: an Avian species for 2 cards (safe from land Carnivores; eats at the cliff)
+      if (E.X(s).v === 'flight' && work.flights && work.flights.length && s.maxTraits >= 1) {
+        const spare = pl.hand.filter(c => !isEv(c));
+        if (spare.length >= 3) {
+          const carnN = Math.min(3, carnivores(s, p).length);
+          const vAv = (nSp < 2 ? 2.4 : nSp < 4 ? 1.6 - 0.25 * nSp : 0.3) * (out > 1 ? 1 : 0.6) - 0.6 + 0.35 * carnN + (s.cliff > 0 ? 0.3 : 0)
+            + (lv === 'hard' ? 1.0 : 0); // measured: Hard builds too few Avians without this (tools: ladder in Flight games)
+          if (vAv > bv) { bv = vAv; best = { t: 'avian', cards: cheapest(work, p, spare, 2), side: 'R' }; }
+        }
+      }
       if (!best || !tryMove(best)) break;
     }
     return { t: 'play', moves };
+  }
+  // the k cards in `list` worth least to this seat as traits
+  function cheapest(s, p, list, k) {
+    const pl = s.players[p];
+    const val = id => { let v = 0.4; pl.species.forEach((sp, i) => { if (!has(sp, T(id))) v = Math.max(v, traitValue(s, p, sp, i, T(id), 'medium')); }); return v; };
+    return list.slice().sort((a, b) => val(a) - val(b)).slice(0, k);
   }
   // fluid play (food card placed in the play turn): the food card first, by the same habits as the
   // separate food step, then the card plays from the rest of the hand
@@ -177,20 +220,30 @@
     return Object.assign(choosePlays(rest, p, lv), { food });
   }
   // a cheap copy of the engine's play rules for planning (the engine re-checks everything)
+  const newPop = s => (E.X(s).scen === 'Teeming Hordes' ? 2 : 1); // scenario: new species start at 2
   function simPlay(s, pl, m) {
+    if (m.t === 'avian') {
+      const cs = m.cards || [];
+      if (cs.length !== 2 || cs[0] === cs[1] || cs.some(c => pl.hand.indexOf(c) < 0) || !s.flights || !s.flights.length) throw new Error('x');
+      pl._made = (pl._made || 0) + 1;
+      const ns = { id: -pl._made, body: 1, pop: newPop(s), food: 0, fat: 0, traits: [s.flights.pop()], hidden: [], av: true, up: 0 };
+      if (m.side === 'L') pl.species.unshift(ns); else pl.species.push(ns);
+      for (const c of cs) pl.hand.splice(pl.hand.indexOf(c), 1);
+      return;
+    }
     const k = pl.hand.indexOf(m.card);
     if (k < 0) throw new Error('x');
     if (m.t === 'species') {
       // a species made in this same list is named -1, -2, ... (the engine maps it to its real id)
       pl._made = (pl._made || 0) + 1;
-      const ns = { id: -pl._made, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [] };
+      const ns = { id: -pl._made, body: 1, pop: newPop(s), food: 0, fat: 0, traits: [], hidden: [] };
       if (m.side === 'L') pl.species.unshift(ns); else pl.species.push(ns);
     } else {
       const sp = pl.species.find(x => x.id === m.s);
       if (!sp) throw new Error('x');
-      if (m.t === 'body') { if (sp.body >= E.MAX) throw new Error('x'); sp.body++; }
+      if (m.t === 'body') { if (sp.body >= E.maxBody(sp)) throw new Error('x'); sp.body++; }
       else if (m.t === 'pop') { if (sp.pop >= E.MAX) throw new Error('x'); sp.pop++; }
-      else if (m.t === 'trait') { const list = sp.traits.concat(sp.hidden); if (list.length >= s.maxTraits || list.some(id => T(id) === T(m.card))) throw new Error('x'); sp.hidden.push(m.card); }
+      else if (m.t === 'trait') { if (isEv(m.card)) throw new Error('x'); const list = sp.traits.concat(sp.hidden); if (list.length >= s.maxTraits || list.some(id => T(id) === T(m.card))) throw new Error('x'); sp.hidden.push(m.card); }
       else throw new Error('x');
     }
     pl.hand.splice(k, 1);
@@ -201,7 +254,8 @@
   function evalFor(s, p) {
     const sc = E.score(s, p);
     let v = sc.total;
-    for (const sp of s.players[p].species) v += Math.min(sp.food, sp.pop) * 1.0 - Math.max(0, sp.pop - sp.food) * 0.35 + sp.fat * 0.5;
+    // E.needFood also counts an Avian's unpaid upkeep (0 for land species)
+    for (const sp of s.players[p].species) v += Math.min(sp.food, sp.pop) * 1.0 - E.needFood(sp) * 0.35 + sp.fat * 0.5;
     return v;
   }
   // the k cards this seat would miss least (for Intelligence discards)
@@ -217,12 +271,12 @@
     const r = brng(s, p, s.round * 7 + 3 + s.log.length);
     // Intelligence needs cards to discard: the ones worth least
     const fill = o => {
-      if (o.t === 'intel') return { t: 'intel', s: o.s, card: worstCards(s, p, 1)[0] };
+      if (o.t === 'intel' || o.t === 'teeth') return { t: o.t, s: o.s, card: worstCards(s, p, 1)[0] };
       if (o.t === 'attack') return o.ignore.length ? { t: 'attack', s: o.s, target: o.target, ignore: o.ignore, cards: worstCards(s, p, o.ignore.length) } : { t: 'attack', s: o.s, target: o.target };
-      return { t: o.t, s: o.s };
+      return o.src ? { t: o.t, s: o.s, src: o.src } : { t: o.t, s: o.s };
     };
     if (lv === 'easy') {
-      const feeds = opts.filter(o => o.t !== 'intel');
+      const feeds = opts.filter(o => o.t !== 'intel' && o.t !== 'teeth');
       if (!feeds.length) return { t: 'pass' };
       return fill(pick(r, feeds));
     }
@@ -231,7 +285,8 @@
       const eats = opts.filter(o => o.t === 'eat');
       if (eats.length) {
         let b = eats[0], bn = -1;
-        for (const o of eats) { const sp = E.findSp(s, o.s).sp; const n = sp.pop - sp.food; if (n > bn) { bn = n; b = o; } }
+        // an Avian eats at the cliff first (only Avians can, so it leaves the watering hole to the rest)
+        for (const o of eats) { const sp = E.findSp(s, o.s).sp; const need = E.needFood(sp), n = need + (need > 0 && o.src === 'cliff' ? 0.01 : 0); if (n > bn) { bn = n; b = o; } }
         if (bn > 0 || !passOk) return fill(b);
       }
       const atks = opts.filter(o => o.t === 'attack' && !o.ignore.length && E.findSp(s, o.target).p !== p);
@@ -241,7 +296,7 @@
         if (E.hungry(E.findSp(s, b.s).sp) || !passOk) return fill(b);
       }
       if (passOk) return { t: 'pass' };
-      const forced = opts.find(o => o.must) || opts.find(o => o.t !== 'intel');
+      const forced = opts.find(o => o.must) || opts.find(o => o.t !== 'intel' && o.t !== 'teeth');
       return fill(forced);
     }
     // hard: try every option on a copy (computers inside the copy are switched off) and score it
@@ -252,13 +307,15 @@
       let ns;
       try { ns = E.applyRaw(s, p, o); } catch (e) { continue; }
       let v = valueAfter(ns, p);
-      if (o.t === 'intel') v -= 0.6; // a card spent
+      if (o.t === 'intel' || o.t === 'teeth') v -= 0.6; // a card spent
       if (o.ignore && o.ignore.length) v -= 0.6 * o.ignore.length;
       if (v > bv) { bv = v; best = o; }
     }
     return best || fill(opts.find(o => o.must) || opts[0]);
   }
   function valueAfter(ns, p) {
+    // the attack stopped for a Last Stand answer: judge it as if no Last Stand came (the seat can't see hands)
+    if (ns.phase === 'react' && ns.pending) { try { ns = E.applyRaw(ns, ns.pending.tp, { t: 'react', card: null }); } catch (e) { /* keep */ } }
     let opp = 0;
     for (let q = 0; q < ns.players.length; q++) if (q !== p) opp = Math.max(opp, evalFor(ns, q));
     return evalFor(ns, p) - 0.6 * opp;
@@ -267,7 +324,7 @@
   function rate(s, p, o) {
     let ns;
     try { ns = E.applyRaw(s, p, o); } catch (e) { return -Infinity; }
-    return valueAfter(ns, p) - (o.t === 'intel' ? 0.6 : 0) - (o.ignore && o.ignore.length ? 0.6 * o.ignore.length : 0);
+    return valueAfter(ns, p) - (o.t === 'intel' || o.t === 'teeth' ? 0.6 : 0) - (o.ignore && o.ignore.length ? 0.6 * o.ignore.length : 0);
   }
 
   // ------------------------------------------------------------------ entry point
@@ -276,7 +333,82 @@
     if (s.phase === 'food') return chooseFood(s, p, lv);
     if (s.phase === 'play') return s.fluid ? chooseFluid(s, p, lv) : choosePlays(s, p, lv);
     if (s.phase === 'leaf') return { t: 'leaf', k: 0 }; // the engine lists the best order first
+    if (s.phase === 'event') return chooseEvent(s, p, lv);
+    if (s.phase === 'react') return chooseReact(s, p, lv);
     return chooseFeed(s, p, lv);
+  }
+
+  // ------------------------------------------------------------------ expansion event step
+  // turn an event option into a full action (cards to discard where the rule needs them)
+  function fillEvent(s, p, o) {
+    const hand = s.players[p].hand;
+    if (o.t === 'mutate') {
+      const rest = hand.filter(c => c !== o.card);
+      return { t: 'mutate', s: o.s, card: o.card, discard: cheapest(s, p, rest, Math.min(2, rest.length)) };
+    }
+    if (o.t === 'claws') return { t: 'claws', s: o.s, card: cheapest(s, p, hand.filter(c => !isEv(c)).length ? hand.filter(c => !isEv(c)) : hand, 1)[0] };
+    if (o.t === 'ev' && o.ignore && o.ignore.length && T(o.card) === 'Dive-Bomb') return Object.assign({}, o, { cards: cheapest(s, p, hand.filter(c => c !== o.card), o.ignore.length) });
+    return Object.assign({}, o);
+  }
+  function chooseEvent(s, p, lv) {
+    const opts = E.eventOptions(s, p);
+    const r = brng(s, p, s.round * 7 + 5 + s.log.length);
+    const muts = opts.filter(o => o.t === 'mutate');
+    if (muts.length) {
+      if (lv === 'easy') return fillEvent(s, p, pick(r, muts));
+      // the trait card worth most on that species
+      const pl = s.players[p];
+      let b = muts[0], bv = -Infinity;
+      for (const o of muts) {
+        if (o.card == null) continue;
+        const i = pl.species.findIndex(x => x.id === o.s);
+        const v = traitValue(s, p, pl.species[i], i, T(o.card), lv);
+        if (v > bv) { bv = v; b = o; }
+      }
+      return fillEvent(s, p, b);
+    }
+    const done = { t: 'evdone' };
+    if (lv === 'easy') { const o = pick(r, opts); return o.t === 'evdone' || r() < 0.3 ? done : fillEvent(s, p, o); }
+    const pl = s.players[p];
+    // medium: simple habits for each kind
+    if (lv === 'medium') {
+      for (const o of opts) {
+        if (o.t === 'ev') {
+          const t = T(o.card);
+          if (t === 'Seed Dispersal') { const mine = pl.species.filter(x => !E.isCarn(x)).length; if (mine >= 2) return fillEvent(s, p, o); continue; }
+          if (t === 'Invasive Species') { if (carnivores(s, -1).length) return fillEvent(s, p, o); continue; }
+          if (o.target != null) { const tl = E.findSp(s, o.target); if (tl.p !== p && !(o.ignore && o.ignore.length > (t === 'Pounce' ? 1 : 0))) return fillEvent(s, p, o); continue; }
+          const sp = E.findSp(s, o.s).sp;
+          if (E.hungry(sp)) return fillEvent(s, p, o);
+        }
+        if (o.t === 'mimic') return fillEvent(s, p, o);
+        if (o.t === 'claws') { const i = pl.species.findIndex(x => x.id === o.s); if (threat(s, p, i)) return fillEvent(s, p, o); }
+      }
+      return done;
+    }
+    // hard: try each option on a copy and keep the best (an event card is replaced by a draw, so it costs nothing)
+    let best = done, bv;
+    try { bv = valueAfter(E.applyRaw(s, p, done), p) + 0.15 * pl.hand.filter(isEv).length; } catch (e) { bv = -Infinity; }
+    for (const o of opts) {
+      if (o.t === 'evdone') continue;
+      const a = fillEvent(s, p, o);
+      let ns;
+      try { ns = E.applyRaw(s, p, a); } catch (e) { continue; }
+      let v = valueAfter(ns, p) + 0.15 * ns.players[p].hand.filter(isEv).length;
+      if (a.t === 'claws') v -= 0.6;
+      if (a.cards) v -= 0.6 * a.cards.length;
+      if (o.t === 'mimic') { const sp = E.findSp(s, o.s); v += Math.max(0, traitValue(s, p, sp.sp, sp.i, T(o.from), lv) - 0.7); }
+      if (o.t === 'ev' && T(o.card) === 'Invasive Species') v += 0.3 * carnivores(s, -1).length;
+      if (v > bv + 0.05) { bv = v; best = a; }
+    }
+    return best;
+  }
+  // Last Stand: the attacked player may answer with it. Medium/Hard always do (the card is replaced by a draw)
+  function chooseReact(s, p, lv) {
+    const card = s.players[p].hand.find(c => T(c) === 'Last Stand');
+    if (card == null) return { t: 'react', card: null };
+    if (lv === 'easy' && brng(s, p, s.round * 7 + 6 + s.log.length)() < 0.5) return { t: 'react', card: null };
+    return { t: 'react', card };
   }
   E.setBot((s, p) => decide(s, p, s.players[p].bot));
   return { decide, rate, traitValue, threat, plantOutlook, MEAN_FOOD };

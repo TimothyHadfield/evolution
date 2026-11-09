@@ -16,12 +16,16 @@
    a network move for them. state.stepBots leaves computer FEEDING turns to the screen (so you can
    watch them one at a time on this device). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'));
-  else root.EvoEngine = factory(root.EvoCards);
-})(typeof self !== 'undefined' ? self : this, function (Cards) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'), require('./flight.js'));
+  else root.EvoEngine = factory(root.EvoCards, root.EvoFlight);
+})(typeof self !== 'undefined' ? self : this, function (Cards, Flight) {
   'use strict';
-  const { DECK } = Cards;
+  // every card id any game can hold (base 0-128, expansions after); the base deck alone is Cards.DECK
+  const DECK = Cards.ALL;
   const MAX = 6;
+  // the expansion rules of this game (state.exp; saves from before it are the base game)
+  const BASE_EXP = { v: 'base', promos: [], scen: null };
+  const X = s => s.exp || BASE_EXP;
   const clone = x => JSON.parse(JSON.stringify(x));
   let BOT = null; // set by bots.js: function(state, seat) -> action
   function setBot(fn) { BOT = fn; }
@@ -40,13 +44,21 @@
 
   // ------------------------------------------------------------------ helpers
   const trait = id => DECK[id].trait;
-  // has(species, trait, ignore) - ignore = list of trait names switched off by Intelligence
-  const has = (sp, t, ignore) => !(ignore && ignore.indexOf(t) >= 0) && sp.traits.some(id => trait(id) === t);
+  // has(species, trait, ignore) - ignore = list of trait names switched off by Intelligence.
+  // sp.tmp = traits a species holds for this round only (Mimicry, Claws' Climbing)
+  const has = (sp, t, ignore) => !(ignore && ignore.indexOf(t) >= 0) && (sp.traits.some(id => trait(id) === t) || !!(sp.tmp && sp.tmp.indexOf(t) >= 0));
   const isCarn = sp => has(sp, 'Carnivore');
   const fatRoom = sp => (has(sp, 'Fat Tissue') ? Math.max(0, sp.body - sp.fat) : 0);
-  const needFood = sp => Math.max(0, sp.pop - sp.food);   // "hungry" in the rules
+  // Flight: an Avian (sp.av) must first eat food equal to its body size (upkeep, sp.up, never scored)
+  const maxBody = sp => (sp.av ? 3 : MAX);
+  const upNeed = sp => (sp.av ? Math.max(0, sp.body - (sp.up || 0)) : 0);
+  const needFood = sp => Math.max(0, sp.pop - sp.food) + upNeed(sp);   // "hungry" in the rules
   const canTake = sp => needFood(sp) + fatRoom(sp);       // food it may still take (Fat Tissue counts)
   const hungry = sp => needFood(sp) > 0;
+  // one food onto a species: Avian upkeep first, then population, then Fat Tissue
+  function addFood(sp) { if (upNeed(sp) > 0) sp.up = (sp.up || 0) + 1; else if (sp.food < sp.pop) sp.food++; else sp.fat++; }
+  // an Avian's body grew: food already on its population moves down to the upkeep spaces (Flight rulebook, Nesting)
+  function settleUp(sp) { while (sp.av && upNeed(sp) > 0 && sp.food > 0) { sp.food--; sp.up = (sp.up || 0) + 1; } }
   function findSp(s, id) {
     for (let p = 0; p < s.players.length; p++) {
       const i = s.players[p].species.findIndex(x => x.id === id);
@@ -61,36 +73,53 @@
   // ------------------------------------------------------------------ setup
   // o = {seed, players:[{name, bot}], quick (Quick Play variant), fluid (food card placed in the play turn;
   //      default on), stepBots, trace}
+  // o.exp = {v: 'base' | 'flight' | 'climate', promos: [promo set keys], scen: scenario name or null}
+  function cleanExp(e) {
+    e = e || {};
+    const v = ['base', 'flight', 'climate'].indexOf(e.v) >= 0 ? e.v : 'base';
+    const promos = (Array.isArray(e.promos) ? e.promos : []).filter((k, i, a) => Cards.PROMOS[k] && a.indexOf(k) === i);
+    const scen = e.scen && Cards.SCENARIOS[e.scen] ? e.scen : null;
+    return Object.assign({}, e, { v, promos, scen });
+  }
   function newGame(o) {
     o = o || {};
     const n = Math.max(2, Math.min(6, (o.players || []).length || 2));
+    const exp = cleanExp(o.exp);
     const s = {
       v: 1, seed: (o.seed >>> 0) || 1, round: 0, phase: 'deal', first: 0, turn: -1, playTurn: -1, passes: 0, fluid: o.fluid !== false,
       deck: [], discard: [], hole: 0, nextId: 1, log: [], lastRound: false, lastNext: false, over: false, result: null,
       // 2 players: 40 cards out, 2 traits per species. 6 players: Quick Play is required.
       quick: n === 6 ? true : !!o.quick, maxTraits: n === 2 ? 2 : 3, removed: 0,
       hist: [], stepBots: !!o.stepBots, trace: o.trace ? { rounds: [], life: [] } : null,
-      players: [],
+      exp, players: [],
     };
+    if (exp.scen === 'Cretaceous Period') s.maxTraits = 99;
+    if (exp.scen === 'Great Permian Extinction') s.maxTraits = 1;
     for (let i = 0; i < n; i++) {
       const pl = (o.players && o.players[i]) || {};
       s.players.push({ name: Array.from(String(pl.name || 'Player ' + (i + 1))).slice(0, 24).join(''), bot: pl.bot || null,
         hand: [], bag: 0, species: [], foodCard: null, done: false, eaten: 0 });
     }
-    s.deck = shuffle(s, DECK.map(c => c.id));
+    s.deck = shuffle(s, Cards.buildDeck(exp));
     if (n === 2) { s.deck.splice(0, 40); s.removed = 40; }
+    if (Flight) Flight.setup(s, n); // Flight: the cliff, the 12 Flight cards, 40 cards set aside for the end
     s.first = Math.floor(rand(s) * n);
     startRound(s);
     autoplay(s);
     return s;
   }
-  function newSpecies(s) { return { id: s.nextId++, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [], born: s.round }; }
+  // Teeming Hordes (scenario): new species start at population 2
+  function newSpecies(s) { return { id: s.nextId++, body: 1, pop: X(s).scen === 'Teeming Hordes' ? 2 : 1, food: 0, fat: 0, traits: [], hidden: [], born: s.round }; }
 
   // draw k cards; returns true if the deck ran out (reshuffled, or no cards left anywhere)
   function draw(s, p, k) {
     const pl = s.players[p];
     let reshuffled = false;
     for (let i = 0; i < k; i++) {
+      if (!s.deck.length && s.reserve && s.reserve.length) {
+        // Flight: the 40 cards set aside at the start are used instead of shuffling the discard pile
+        s.deck = s.reserve; s.reserve = []; reshuffled = true;
+      }
       if (!s.deck.length) {
         // no discards to reshuffle either: the deck has still run out, so the game must end
         if (!s.discard.length) { reshuffled = true; break; }
@@ -109,9 +138,12 @@
     s.hist.push({ round: s.round, holeStart: s.hole, foodCards: [], added: 0, eaten: s.players.map(() => 0), popLost: s.players.map(() => 0), attacks: 0, extinct: 0 });
     // 1. deal: a new species for anyone with none, then 3 cards + 1 per species, from the first player
     s.players.forEach(pl => { if (!pl.species.length) pl.species.push(newSpecies(s)); });
+    // scenarios: Land of Plenty = 10 cards in the first deal; Radioactive Atmosphere = 2 cards per species
+    const scen = X(s).scen;
     for (let k = 0; k < s.players.length; k++) {
       const p = (s.first + k) % s.players.length;
-      if (draw(s, p, 3 + s.players[p].species.length)) {
+      const nDeal = scen === 'Land of Plenty' && s.round === 1 ? 10 : 3 + s.players[p].species.length * (scen === 'Radioactive Atmosphere' ? 2 : 1);
+      if (draw(s, p, nDeal)) {
         s.lastRound = true;
         log(s, -1, 'The deck ran out while dealing: discards reshuffled. This is the last round.', 'sys');
       }
@@ -132,6 +164,8 @@
     if (s.phase === 'play') return s.quick ? s.players.map((pl, i) => (!pl.done ? i : -1)).filter(i => i >= 0) : (s.playTurn >= 0 ? [s.playTurn] : []);
     if (s.phase === 'feed') return s.turn >= 0 ? [s.turn] : [];
     if (s.phase === 'leaf') return s.leaf ? Object.keys(s.leaf).map(Number).sort((a, b) => a - b) : [];
+    if (s.phase === 'event') return s.ev && s.ev.turn >= 0 ? [s.ev.turn] : [];        // expansion events (flight.js)
+    if (s.phase === 'react') return s.pending ? [s.pending.tp] : [];                  // Last Stand (flight.js)
     return [];
   }
 
@@ -143,10 +177,15 @@
     if (!C || !T) return 'No such species';
     if (C === T) return 'A Carnivore can’t eat itself';
     if (!isCarn(C)) return 'Not a Carnivore';
+    if (C.noAtk) return 'Quills: it can’t attack again this round';
     const tHas = t => has(T, t, ignore);
-    const atk = C.body + (has(C, 'Pack Hunting') ? C.pop : 0);
-    const def = T.body + (tHas('Hard Shell') ? 4 : 0);
-    if (atk <= def) return tHas('Hard Shell') ? 'Hard Shell: needs size over ' + def : 'Too big: needs size over ' + def;
+    // Claws: 2 bigger when it attacks or is attacked. Sharp Teeth ('Size' switched off): any size
+    const atk = C.body + (has(C, 'Pack Hunting') ? C.pop : 0) + (has(C, 'Claws') ? 2 : 0);
+    const def = T.body + (tHas('Hard Shell') ? 4 : 0) + (tHas('Claws') ? 2 : 0);
+    if (atk <= def && !(ignore && ignore.indexOf('Size') >= 0)) return tHas('Hard Shell') ? 'Hard Shell: needs size over ' + def : 'Too big: needs size over ' + def;
+    if (tHas('Timid')) return 'Timid: it can’t be attacked';
+    if (tHas('Flight') && !has(C, 'Flight')) return 'Flight: attacker needs Flight';
+    if (tHas('Camouflage') && !has(C, 'Good Eyesight')) return 'Camouflage: attacker needs Good Eyesight';
     if (tHas('Climbing') && !has(C, 'Climbing')) return 'Climbing: attacker needs Climbing';
     if (tHas('Burrowing') && T.food >= T.pop) return 'Burrowing: it has eaten its fill';
     if (tHas('Defensive Herding') && C.pop <= T.pop) return 'Defensive Herding: needs more population';
@@ -157,16 +196,23 @@
       ((left && has(left, 'Warning Call')) || (right && has(right, 'Warning Call')))) return 'Warning Call next to it: attacker needs Ambush';
     return '';
   }
-  // the fewest traits Intelligence must switch off to allow the attack (null = impossible)
+  // what a Carnivore can switch off by discarding one card per trait:
+  //   Intelligence: any defending trait; Flight (expansion): Warning Call, Symbiosis or Climbing;
+  //   Sharp Teeth (promo): 'Size' = the body size rule, for this attack
+  const FLIGHT_NEG = ['Warning Call', 'Symbiosis', 'Climbing'];
+  function canIgnore(C, t) {
+    return (has(C, 'Intelligence') && Cards.XDEFENSES.indexOf(t) >= 0) || (has(C, 'Flight') && FLIGHT_NEG.indexOf(t) >= 0) || (t === 'Size' && has(C, 'Sharp Teeth'));
+  }
+  // the fewest traits Intelligence (or Flight / Sharp Teeth) must switch off to allow the attack (null = impossible)
   function intelNeeded(s, cp, ci, tp, ti, maxCards) {
     if (!attackBlock(s, cp, ci, tp, ti)) return [];
     const C = s.players[cp].species[ci];
-    if (!has(C, 'Intelligence') || maxCards <= 0) return null;
+    if (!(has(C, 'Intelligence') || has(C, 'Flight') || has(C, 'Sharp Teeth')) || maxCards <= 0) return null;
     const T = s.players[tp].species[ti];
     const row = s.players[tp].species;
-    const cand = Cards.DEFENSES.filter(t => has(T, t) || (t === 'Warning Call' && ((row[ti - 1] && has(row[ti - 1], t)) || (row[ti + 1] && has(row[ti + 1], t)))));
-    // Horns does not block; switching it off only saves the attacker a population (left to the player)
-    const blockers = cand.filter(t => t !== 'Horns');
+    const cand = Cards.XDEFENSES.filter(t => has(T, t) || (t === 'Warning Call' && ((row[ti - 1] && has(row[ti - 1], t)) || (row[ti + 1] && has(row[ti + 1], t))))).concat(['Size']);
+    // Horns / Quills do not block; switching them off only spares the attacker (left to the player)
+    const blockers = cand.filter(t => t !== 'Horns' && t !== 'Quills' && canIgnore(C, t));
     for (let size = 1; size <= Math.min(maxCards, blockers.length); size++) {
       const combos = [];
       (function rec(start, acc) {
@@ -188,12 +234,18 @@
     const out = [];
     const pl = s.players[p];
     const handN = pl.hand.length;
+    // Timid (promo): may not eat at the watering hole while another species of yours is hungry
+    const timidWait = sp => has(sp, 'Timid') && pl.species.some(x => x !== sp && !has(x, 'Timid') && hungry(x));
     pl.species.forEach((sp, i) => {
       if (canTake(sp) <= 0) return;
       const must = hungry(sp);
       if (!isCarn(sp)) {
-        if (s.hole > 0) out.push({ t: 'eat', s: sp.id, must });
+        if (s.hole > 0 && !timidWait(sp)) out.push({ t: 'eat', s: sp.id, must });
+        // Flight: an Avian plant eater may eat at the cliff instead
+        if (sp.av && s.cliff > 0) out.push({ t: 'eat', s: sp.id, src: 'cliff', must });
         if (has(sp, 'Intelligence') && handN) out.push({ t: 'intel', s: sp.id, must: false });
+        if (has(sp, 'Sharp Teeth') && handN) out.push({ t: 'teeth', s: sp.id, must: false });
+        if (has(sp, 'Coprophagia') && pl.bag > 0) out.push({ t: 'copro', s: sp.id, must: false });
       } else {
         s.players.forEach((op, tp) => op.species.forEach((T, ti) => {
           if (tp === p && ti === i) return;
@@ -249,6 +301,7 @@
       else if (a.food != null) throw new Error('The food cards are already placed');
       s.players[seat] = test;
       s.discard.push(...disc);
+      if (Flight) Flight.afterPlays(s, seat, a.moves, made); // Nesting on a face-up board that gained population
       test.done = true;
       const nCards = a.moves.filter(m => m.t !== 'drop').length;
       log(s, seat, pname(s, seat) + ' plays ' + nCards + ' card' + (nCards === 1 ? '' : 's') + '.');
@@ -258,6 +311,8 @@
     }
     if (s.phase === 'feed') return feed(s, seat, a);
     if (s.phase === 'leaf') return chooseLeaf(s, seat, a);
+    if (s.phase === 'event' && Flight) return Flight.eventAct(s, seat, a);
+    if (s.phase === 'react' && Flight) return Flight.react(s, seat, a);
     throw new Error('Nothing to do now');
   }
 
@@ -285,16 +340,31 @@
   function playOne(s, pl, m, made, disc) {
     if (!m || typeof m !== 'object') throw new Error('Bad move');
     const sid = typeof m.s === 'number' && m.s < 0 ? made[-m.s - 1] : m.s;
-    const sp = m.t === 'species' ? null : pl.species.find(x => x.id === sid);
-    if (m.t !== 'species' && !sp) throw new Error('No such species');
+    const sp = m.t === 'species' || m.t === 'avian' ? null : pl.species.find(x => x.id === sid);
+    if (m.t !== 'species' && m.t !== 'avian' && !sp) throw new Error('No such species');
     if (m.t === 'drop') {
       // discard one of your own traits for nothing (to make room); face-down ones too
       let k = sp.traits.indexOf(m.card), list = sp.traits;
       if (k < 0) { k = sp.hidden.indexOf(m.card); list = sp.hidden; }
       if (k < 0) throw new Error('No such trait');
       list.splice(k, 1);
-      disc.push(m.card);
+      // Flight: swapping Flight out turns the board into a land species for good; the card goes back to the box
+      if (trait(m.card) === 'Flight') { sp.av = false; sp.up = 0; s.flights.push(m.card); } else disc.push(m.card);
       if (trait(m.card) === 'Fat Tissue' && sp.fat) { pl.bag += sp.fat; sp.fat = 0; } // stored food is scored
+      return;
+    }
+    if (m.t === 'avian') {
+      // Flight: discard 2 cards for an Avian species (population 1, body size 1, a Flight card on it)
+      if (X(s).v !== 'flight') throw new Error('Avian species need the Flight expansion');
+      const cs = Array.isArray(m.cards) ? m.cards : [];
+      if (cs.length !== 2 || cs[0] === cs[1] || cs.some(c => pl.hand.indexOf(c) < 0)) throw new Error('An Avian species costs 2 cards from your hand');
+      if (!s.flights || !s.flights.length) throw new Error('All 12 Flight cards are in play');
+      if (s.maxTraits < 1) throw new Error('No room for the Flight card');
+      const ns = Object.assign(newSpecies(s), { av: true, up: 0 });
+      ns.traits.push(s.flights.pop());
+      made.push(ns.id);
+      if (m.side === 'L') pl.species.unshift(ns); else pl.species.push(ns);
+      for (const c of cs) { pl.hand.splice(pl.hand.indexOf(c), 1); disc.push(c); }
       return;
     }
     const k = pl.hand.indexOf(m.card);
@@ -305,13 +375,14 @@
       if (m.side === 'L') pl.species.unshift(ns); else pl.species.push(ns);
       disc.push(m.card);
     } else if (m.t === 'body') {
-      if (sp.body >= MAX) throw new Error('Body size is already 6');
-      sp.body++; disc.push(m.card);
+      if (sp.body >= maxBody(sp)) throw new Error('Body size is already ' + maxBody(sp) + (sp.av ? ' (an Avian’s largest)' : ''));
+      sp.body++; disc.push(m.card); settleUp(sp);
     } else if (m.t === 'pop') {
       if (sp.pop >= MAX) throw new Error('Population is already 6');
       sp.pop++; disc.push(m.card);
     } else if (m.t === 'trait') {
       const t = trait(m.card);
+      if (Cards.isEvent(m.card)) throw new Error(t + ' is an event card: it is never played as a trait');
       const list = sp.traits.concat(sp.hidden);
       if (list.length >= s.maxTraits) throw new Error('A species holds at most ' + s.maxTraits + ' traits');
       if (list.some(id => trait(id) === t)) throw new Error('It already has ' + t);
@@ -327,11 +398,20 @@
   function take(s, p, sp, n, kind, source) {
     if (kind === 'plant' && isCarn(sp)) return 0;
     let want = n + (kind === 'plant' && has(sp, 'Foraging') ? 1 : 0);
+    // sources: 'hole' (watering hole), 'cliff' (Flight), 'bag' (your own food bag: Coprophagia), 'bank' (unlimited)
     if (source === 'hole') want = Math.min(want, s.hole);
+    if (source === 'cliff') want = Math.min(want, s.cliff || 0);
+    if (source === 'bag') want = Math.min(want, s.players[p].bag);
+    const wasHungry = hungry(sp);
     let got = 0;
-    while (got < want && canTake(sp) > 0) { if (needFood(sp) > 0) sp.food++; else sp.fat++; got++; }
+    while (got < want && canTake(sp) > 0) { addFood(sp); got++; }
     if (source === 'hole') s.hole -= got;
+    if (source === 'cliff') s.cliff -= got;
+    if (source === 'bag') s.players[p].bag -= got;
     if (got > 0) {
+      // Trampling: 2 more plant food is removed from the watering hole; Pest: fully fed = 3 removed
+      if (source === 'hole' && has(sp, 'Trampling') && s.hole > 0) { const k = Math.min(2, s.hole); s.hole -= k; log(s, p, 'Trampling removes ' + k + ' plant food from the watering hole.'); }
+      if (wasHungry && !hungry(sp) && has(sp, 'Pest') && s.hole > 0) { const k = Math.min(3, s.hole); s.hole -= k; log(s, p, 'Pest: ' + k + ' plant food is removed from the watering hole.'); }
       cur(s).eaten[p] += got; s.players[p].eaten += got;
       if (has(sp, 'Cooperation')) {
         const row = s.players[p].species;
@@ -346,7 +426,16 @@
   function reveal(s) {
     s.playTurn = -1;
     // new traits flip face up
-    s.players.forEach(pl => pl.species.forEach(sp => { sp.traits = sp.traits.concat(sp.hidden); sp.hidden = []; }));
+    const flippedNow = [];
+    s.players.forEach((pl, p) => pl.species.forEach(sp => { for (const id of sp.hidden) flippedNow.push({ p, s: sp.id, id }); sp.traits = sp.traits.concat(sp.hidden); sp.hidden = []; }));
+    // expansions: event cards may be played now, after the traits are revealed (Flight rulebook)
+    if (Flight && Flight.startEvents(s, flippedNow)) return;
+    leafStart(s);
+  }
+  function leafStart(s) {
+    // expansion games: before-reveal traits (Good Eyesight takes from the shared watering hole) go player
+    // by player in turn order from the first player (Flight rulebook, "Timing issues")
+    if (Flight && Flight.leafInTurn(s)) return leafNext(s, 0);
     // leaf traits, before the food cards. Each player's own traits only touch their own species
     // (Long Neck takes from the bank, Cooperation passes along their own row), so players are
     // independent. Rulebook: a player with more than one of these chooses their order. When the
@@ -361,20 +450,34 @@
     });
     if (!Object.keys(s.leaf).length) revealFood(s);
   }
+  // one player after another (k = place in turn order); stops at a person whose order changes the result
+  function leafNext(s, k) {
+    s.phase = 'leaf'; s.leaf = {};
+    for (; k < s.players.length; k++) {
+      const p = (s.first + k) % s.players.length;
+      const opts = leafChoices(s, p);
+      if (opts.length > 1 && !s.players[p].bot) { s.leaf[p] = opts; s.leafAt = k; return; }
+      for (const a of opts[0].order) leafOne(s, p, a);
+    }
+    s.leafAt = null;
+    revealFood(s);
+  }
   // the different results player p can get by ordering their leaf traits (the best order first)
   function leafChoices(s, p) {
     const acts = leafActs(s, p);
-    const best = acts.filter(a => a.t !== 'Long Neck').concat(acts.filter(a => a.t === 'Long Neck'));
+    // best order: growth and stored fat first, then Good Eyesight (watering hole), then Long Neck (bank)
+    const rank = a => (a.t === 'Long Neck' ? 2 : a.t === 'Good Eyesight' ? 1 : 0);
+    const best = acts.slice().sort((a, b) => rank(a) - rank(b));
     // more than 6 leaf cards: too many orders to list (720+); keep the best order
     if (acts.length < 2 || acts.length > 6) return [{ order: best }];
     const out = [], seen = {};
     const tryOrder = order => {
       const pl = s.players[p];
       // a small copy holding only what leaf traits touch
-      const m = { round: s.round, hole: s.hole, log: [], hist: [{ eaten: s.players.map(() => 0) }],
-        players: s.players.map((q, i) => (i === p ? { name: q.name, eaten: 0, species: clone(pl.species) } : null)) };
+      const m = { round: s.round, hole: s.hole, log: [], hist: [{ eaten: s.players.map(() => 0) }], exp: s.exp,
+        players: s.players.map((q, i) => (i === p ? { name: q.name, eaten: 0, bag: q.bag, species: clone(pl.species) } : null)) };
       for (const a of order) leafOne(m, p, a);
-      const res = m.players[p].species.map(x => ({ id: x.id, pop: x.pop, food: x.food, fat: x.fat }));
+      const res = m.players[p].species.map(x => Object.assign({ id: x.id, pop: x.pop, food: x.food, fat: x.fat }, x.av ? { up: x.up || 0 } : {}));
       const k = JSON.stringify(res);
       if (!seen[k]) { seen[k] = 1; out.push({ order: order.slice(), res }); }
     };
@@ -394,6 +497,7 @@
     if (a.k > 0) log(s, seat, pname(s, seat) + ' orders leaf traits: ' + o.order.map(x => x.t).join(', ') + '.');
     for (const x of o.order) leafOne(s, seat, x);
     delete s.leaf[seat];
+    if (s.leafAt != null) return leafNext(s, s.leafAt + 1);
     if (!Object.keys(s.leaf).length) revealFood(s);
   }
   // the food cards turn over and feeding starts
@@ -405,6 +509,7 @@
     s.hole = Math.max(0, s.hole + sum);
     H.added = sum;
     log(s, -1, 'Food cards add ' + (sum >= 0 ? '+' : '') + sum + '. Watering hole: ' + s.hole + '.', 'sys');
+    if (Flight) Flight.onFoodReveal(s); // the cliff fills; Unstable DNA
     s.phase = 'feed';
     s.turn = s.first;
     s.passes = 0;
@@ -412,20 +517,40 @@
   }
   // the leaf-icon traits of player p that act before the food cards, one entry per card:
   // {s: species id, t: 'Fertile' | 'Fat Tissue' | 'Long Neck'} (species left to right, Fertile, Fat Tissue, Long Neck)
-  const LEAF = ['Fertile', 'Fat Tissue', 'Long Neck'];
+  // (expansions add Brood Parasite and a plant eater's Good Eyesight)
+  const LEAF = ['Fertile', 'Brood Parasite', 'Fat Tissue', 'Good Eyesight', 'Long Neck'];
   function leafActs(s, p) {
     const out = [];
-    for (const sp of s.players[p].species) for (const t of LEAF) if (has(sp, t)) out.push({ s: sp.id, t });
+    for (const sp of s.players[p].species) for (const t of LEAF) if (has(sp, t) && !(t === 'Good Eyesight' && isCarn(sp)) && !(t === 'Brood Parasite' && !sp.av)) out.push({ s: sp.id, t });
     return out;
+  }
+  // a species gains population; Nesting (Flight) then takes food: land 1 plant, Avian 2 meat, from the bank
+  function gainPop(s, p, sp, why) {
+    if (sp.pop >= MAX) return false;
+    sp.pop++;
+    if (has(sp, 'Nesting')) {
+      const got = sp.av ? take(s, p, sp, 2, 'meat', 'bank') : take(s, p, sp, 1, 'plant', 'bank');
+      if (got) log(s, p, pname(s, p) + '’s Nesting takes ' + got + (sp.av ? ' meat' : ' plant food') + ' from the bank.');
+    }
+    return true;
   }
   // one leaf trait takes effect (Fertile reads the watering hole, which no leaf trait changes)
   function leafOne(s, p, a) {
     const sp = s.players[p].species.find(x => x.id === a.s);
     if (!sp) return;
     if (a.t === 'Fertile') {
-      if (s.hole > 0 && sp.pop < MAX) { sp.pop++; log(s, p, pname(s, p) + '’s Fertile species grows to population ' + sp.pop + '.'); }
+      if (s.hole > 0 && sp.pop < MAX) { gainPop(s, p, sp); log(s, p, pname(s, p) + '’s Fertile species grows to population ' + sp.pop + '.'); }
     } else if (a.t === 'Fat Tissue') {
-      if (sp.fat > 0) { const m = Math.min(sp.fat, needFood(sp)); sp.fat -= m; sp.food += m; }
+      if (sp.fat > 0) { const m = Math.min(sp.fat, needFood(sp)); sp.fat -= m; for (let i = 0; i < m; i++) addFood(sp); }
+    } else if (a.t === 'Brood Parasite') {
+      // Flight: only an Avian, and only while you have another Avian: +1 population and 1 food from the bank
+      if (sp.av && s.players[p].species.some(x => x !== sp && x.av) && sp.pop < MAX) {
+        gainPop(s, p, sp);
+        const got = take(s, p, sp, 1, isCarn(sp) ? 'meat' : 'plant', 'bank');
+        log(s, p, pname(s, p) + '’s Brood Parasite grows to population ' + sp.pop + (got ? ' and takes ' + got + ' food from the bank' : '') + '.');
+      }
+    } else if (a.t === 'Good Eyesight') {
+      if (!isCarn(sp) && s.hole > 0 && canTake(sp) > 0) { const got = take(s, p, sp, 2, 'plant', 'hole'); if (got) log(s, p, pname(s, p) + '’s Good Eyesight takes ' + got + ' plant food from the watering hole.'); }
     } else if (a.t === 'Long Neck') {
       if (canTake(sp) > 0) { const got = take(s, p, sp, 1, 'plant', 'bank'); if (got) log(s, p, pname(s, p) + '’s Long Neck eats ' + got + ' from the bank.'); }
     }
@@ -455,24 +580,49 @@
       log(s, p, pname(s, p) + ' uses Intelligence: discards a card, takes ' + n + ' plant food from the bank.');
       return settleTurn(s); // still your turn: you feed (or pass) as usual
     }
+    if (a.t === 'teeth') {
+      // Sharp Teeth (promo), plant eater: discard a card, 1 plant food from the bank (a free extra, like Intelligence)
+      if (isCarn(sp) || !has(sp, 'Sharp Teeth')) throw new Error('Needs Sharp Teeth (and not a Carnivore)');
+      const k = pl.hand.indexOf(a.card);
+      if (k < 0) throw new Error('Pick a card to discard');
+      pl.hand.splice(k, 1); s.discard.push(a.card);
+      const n = take(s, p, sp, 1, 'plant', 'bank');
+      log(s, p, pname(s, p) + ' uses Sharp Teeth: discards a card, takes ' + n + ' plant food from the bank.');
+      return settleTurn(s);
+    }
     if (a.t === 'eat') {
       if (isCarn(sp)) throw new Error('Carnivores never eat plant food');
-      if (s.hole <= 0) throw new Error('The watering hole is empty');
-      const n = take(s, p, sp, 1, 'plant', 'hole');
-      log(s, p, pname(s, p) + ' eats ' + n + ' plant food' + (n > 1 ? ' (Foraging)' : '') + '.');
+      if (a.src === 'cliff') {
+        if (!sp.av) throw new Error('Only an Avian species can eat at the cliff');
+        if (!(s.cliff > 0)) throw new Error('The cliff is empty');
+        const n = take(s, p, sp, 1, 'plant', 'cliff');
+        log(s, p, pname(s, p) + ' eats ' + n + ' plant food at the cliff' + (n > 1 ? ' (Foraging)' : '') + '.');
+      } else {
+        if (s.hole <= 0) throw new Error('The watering hole is empty');
+        if (!feedOptions(s, p).some(o => o.t === 'eat' && o.s === sp.id && !o.src)) throw new Error('Timid: your other species eat first');
+        const n = take(s, p, sp, 1, 'plant', 'hole');
+        log(s, p, pname(s, p) + ' eats ' + n + ' plant food' + (n > 1 ? ' (Foraging)' : '') + '.');
+      }
+    } else if (a.t === 'copro') {
+      // Coprophagia (promo): instead of the watering hole, 1 food back out of your own food bag
+      if (isCarn(sp) || !has(sp, 'Coprophagia') || !(pl.bag > 0)) throw new Error('Needs Coprophagia and food in your bag');
+      const n = take(s, p, sp, 1, 'plant', 'bag');
+      log(s, p, pname(s, p) + ' takes ' + n + ' food back out of the food bag (Coprophagia).');
     } else if (a.t === 'attack') {
       const tl = findSp(s, a.target);
       if (!tl) throw new Error('No such target');
       const ignore = Array.isArray(a.ignore) ? a.ignore.filter((t, i, arr) => typeof t === 'string' && arr.indexOf(t) === i) : [];
       const cards = Array.isArray(a.cards) ? a.cards : [];
       if (ignore.length) {
-        if (!has(sp, 'Intelligence')) throw new Error('Needs Intelligence');
-        if (ignore.some(t => Cards.DEFENSES.indexOf(t) < 0)) throw new Error('Intelligence only switches off defending traits');
+        if (!(has(sp, 'Intelligence') || has(sp, 'Flight') || has(sp, 'Sharp Teeth'))) throw new Error('Needs Intelligence');
+        if (ignore.some(t => !canIgnore(sp, t))) throw new Error('Intelligence only switches off defending traits');
         if (cards.length !== ignore.length || new Set(cards).size !== cards.length || cards.some(c => pl.hand.indexOf(c) < 0)) throw new Error('Discard one card for each trait you switch off');
       }
       const why = attackBlock(s, p, loc.i, tl.p, tl.i, ignore);
       if (why) throw new Error(why);
       for (const c of cards.slice(0, ignore.length)) { pl.hand.splice(pl.hand.indexOf(c), 1); s.discard.push(c); }
+      // Last Stand (promo): the prey's owner may answer first; the feeding goes on once they have
+      if (Flight && Flight.lastStandAsk(s, p, sp.id, tl.sp.id, ignore, 'feed')) return;
       attack(s, p, loc.i, tl.p, tl.i, ignore);
     } else throw new Error('Bad move');
     s.passes = 0;
@@ -509,6 +659,9 @@
         }
       }
     }
+    // Quills (promo): this Carnivore can't attack again this round. Invasive Species (promo): +1 population
+    if (has(T, 'Quills', ignore) && C.pop > 0) { C.noAtk = true; log(s, p, 'Quills: that Carnivore can’t attack again this round.'); }
+    s.players.forEach((pl, q) => pl.species.forEach(x => { if (x.inv && x !== T && x.pop > 0 && gainPop(s, q, x)) log(s, q, pname(s, q) + '’s Invasive Species grows to population ' + x.pop + '.'); }));
     if (T.pop <= 0) extinct(s, tp, T);
     if (C.pop <= 0) extinct(s, p, C);
   }
@@ -527,7 +680,7 @@
     const pl = s.players[p];
     pl.bag += sp.food + sp.fat; // food on a dead species is still scored
     const lost = sp.traits.concat(sp.hidden);
-    for (const id of lost) s.discard.push(id);
+    for (const id of lost) (trait(id) === 'Flight' ? s.flights : s.discard).push(id); // Flight cards go back to the box
     cur(s).extinct++;
     if (s.trace) s.trace.life.push([sp.traits.map(trait).sort().join('|'), s.round - (sp.born || 1) + 1, 0]);
     log(s, p, pname(s, p) + '’s species goes extinct' + (lost.length ? ': draws ' + lost.length + ' card' + (lost.length > 1 ? 's' : '') : '') + '.', 'ext');
@@ -540,6 +693,7 @@
   // after a feeding: next player clockwise
   function nextTurn(s) {
     s.turn = (s.turn + 1) % s.players.length;
+    if (s.fseq != null) s.fseq++;
     settleTurn(s);
   }
   // skip players with nothing they could do; end the round once everyone in a row has passed
@@ -547,10 +701,12 @@
     const n = s.players.length;
     for (let guard = 0; guard < 4 * n + 4; guard++) {
       if (s.passes >= n) return endRound(s);
+      if (Flight) Flight.turnStart(s); // Insectivore: before each of your feeding turns
       const opts = feedOptions(s, s.turn);
       if (opts.length) return; // this player decides (feed, or pass if allowed)
       s.passes++;
       s.turn = (s.turn + 1) % n;
+      if (s.fseq != null) s.fseq++;
     }
     endRound(s);
   }
@@ -565,10 +721,13 @@
         if (sp.food < sp.pop) { H.popLost[p] += sp.pop - sp.food; log(s, p, pname(s, p) + '’s ' + sp.body + '/' + sp.pop + ' species starves to population ' + sp.food + '.'); sp.pop = sp.food; }
         pl.bag += sp.food;
         sp.food = 0;
+        if (sp.av) sp.up = 0; // Avian upkeep food goes back to the bank, never into the bag
         if (sp.pop <= 0) extinct(s, p, sp);
       }
     });
+    if (Flight) Flight.endRound(s); // this round's extras end (Mimicry, Claws, Quills, Invasive Species)
     H.holeEnd = s.hole;
+    if (X(s).scen === 'Plant Life Explosion' && s.hole > 0) { s.hole *= 2; log(s, -1, 'Plant Life Explosion: the watering hole doubles to ' + s.hole + '.', 'sys'); }
     H.scores = s.players.map((_, p) => score(s, p).total);
     if (s.lastRound) return finish(s);
     s.first = (s.first + 1) % s.players.length;
@@ -611,9 +770,13 @@
   // What seat `seat` may see (-1 = public). Hides hands, food behind screens, face-down traits,
   // face-down food cards, the deck order and the random seed.
   function view(s, seat) {
-    const hidingFood = s.phase === 'food' || s.phase === 'play' || s.phase === 'leaf';
+    const hidingFood = s.phase === 'food' || s.phase === 'play' || s.phase === 'leaf' || s.phase === 'event' || (s.phase === 'react' && !!s.pending && s.pending.after === 'event');
     const last = cur(s);
     const v = {
+      exp: clone(X(s)), cliff: s.cliff || 0, reserveSize: s.reserve ? s.reserve.length : 0, flightsLeft: s.flights ? s.flights.length : 0,
+      ev: s.phase === 'event' && s.ev ? { turn: s.ev.turn } : null,
+      mut: s.phase === 'event' && s.mut ? clone(s.mut) : null, mimicked: s.phase === 'event' && s.mimicked ? clone(s.mimicked) : null, // public: Rapid Mutation draws, Mimicry used
+      pending: s.phase === 'react' && s.pending ? clone(s.pending) : null,
       round: s.round, phase: s.phase, fluid: !!s.fluid, first: s.first, turn: s.turn, playTurn: s.playTurn, hole: s.hole,
       deckSize: s.deck.length, discardSize: s.discard.length, quick: s.quick, maxTraits: s.maxTraits, removed: s.removed,
       lastRound: s.lastRound, lastNext: s.lastNext, over: s.over, result: s.over ? s.result : null, toAct: toAct(s), log: s.log.slice(-80), leaf: s.phase === 'leaf' && s.leaf ? clone(s.leaf) : null,
@@ -624,8 +787,10 @@
       players: s.players.map((pl, p) => ({
         name: pl.name, bot: !!pl.bot, handSize: pl.hand.length, done: pl.done, foodPicked: pl.foodCard !== null,
         bag: s.over || p === seat ? pl.bag : null,
-        species: pl.species.map(sp => ({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(),
-          hidden: p === seat ? sp.hidden.slice() : sp.hidden.map(() => -1) })),
+        species: pl.species.map(sp => Object.assign({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(),
+          hidden: p === seat ? sp.hidden.slice() : sp.hidden.map(() => -1) },
+          // expansion bits only when present, so base-game views look exactly as before
+          sp.av ? { av: true, up: sp.up || 0 } : {}, sp.tmp && sp.tmp.length ? { tmp: sp.tmp.slice() } : {}, sp.noAtk ? { noAtk: true } : {}, sp.inv ? { inv: true } : {})),
       })),
     };
     if (seat >= 0 && s.players[seat]) {
@@ -635,6 +800,11 @@
     return v;
   }
 
-  return { newGame, apply, applyRaw, toAct, view, feedOptions, canPass, attackBlock, intelNeeded, score, setBot, leafActs, leafOne,
-    hungry, canTake, needFood, isCarn, has, trait, MAX, rand, shuffle, clone, findSp };
+  const api = { newGame, apply, applyRaw, toAct, view, feedOptions, canPass, attackBlock, intelNeeded, score, setBot, leafActs, leafOne,
+    hungry, canTake, needFood, isCarn, has, trait, MAX, rand, shuffle, clone, findSp, maxBody, upNeed, canIgnore, X };
+  // the expansion rules (js/flight.js) work on the same state with these engine pieces
+  if (Flight) Flight.bind({ X, has, isCarn, trait, take, gainPop, attack, attackBlock, intelNeeded, canTake, hungry, needFood, draw, log, pname, findSp,
+    newSpecies, nextTurn, leafStart, extinct, loseOne, cur, eachInOrder, settleUp, canIgnore, Cards, MAX });
+  if (Flight) api.eventOptions = Flight.eventOptions;
+  return api;
 });

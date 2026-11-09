@@ -1,6 +1,6 @@
 # Evolution: rules check
 
-**Edition built:** Evolution, North Star Games, **2nd edition (2015 onward), 2017 rulebook** (the one with food screens). This is the base game only: 129 trait cards, 17 traits, 2–6 players.
+**Edition built:** Evolution, North Star Games, **2nd edition (2015 onward), 2017 rulebook** (the one with food screens). The base game is 129 trait cards, 17 traits, 2–6 players. Flight and the promo packs are optional (section "Flight and the promo packs").
 
 Status: every number below is asserted by `tests/engine.test.js`.
 - Each rule has at least two sources.
@@ -87,6 +87,33 @@ Status: every number below is asserted by `tests/engine.test.js`.
 - **Intelligence timing** [R p.12, checked 2026-10-28]: "discard one or more cards from their hand during any of their feeding turns", "in addition to the player's normal feeding turn and as many times as you want". The engine already does exactly this (own feeding turn, repeatable). An earlier designer post (source D) allowed it any time; the 2017 rulebook we build narrows it to your feeding turns, so no change.
 - **Food card in the play turn** (Tim's chosen variant, 2026-11-09; the rulebook [R] has everyone place food cards first, at once). Tim: "make the card playing stage more fluid for the user so that they can choose to do any order of the playing cards, upgrading, etc. ... Basically keep everything the same except allow the user to choose when they place it in the watering hole". Engine: new games carry `s.fluid` (default on; old saves without it keep the two-step flow). Rounds start straight in `play`; the play action is `{t:'play', moves, food}`, and `food` is required while you held cards, must be in your hand and can't be a card a move uses (empty hand: no food card). Food cards stay hidden until the reveal, and the hole sum is unchanged. Computers pick the food card first (same choice as before), then their plays from the rest. The guided first game stays two-step. Daily, vs-computer and online games are fluid. Tests: `tests/fluid.test.js` (11, 10 seen failing on the old engine), `tests/fluid-ui.mjs` (seen failing on the old code). Ladder, 400 games per pairing, classic → fluid: Hard>Easy 98.5 → 98.5%, Hard>Medium 72.8 → 73.0%, Medium>Easy 77.4 → 77.4%, Hard at 4 players 51.5 → 53.0%, at 3 players 57.5 → 57.0%.
 
+## Flight and the promo packs (built 2026-11-09; tests: `tests/flight.test.js`, 36, every one seen failing on the old engine)
+Sources, details in [expansions-research.md](expansions-research.md):
+| # | Source | Used for |
+|---|---|---|
+| F | Official Evolution: Flight 2015 rulebook PDF (in TTS mod 2041385428): https://steamusercontent-a.akamaihd.net/ugc/1029576743442596773/19637A42B84D25D110ED0D83240B65F4EE0B8A45/ | Every Flight rule below |
+| F2 | https://www.ultraboardgames.com/evolution/flight.php and https://rulespal.com/evolution-flight/rulebook | Cross-check of the Flight rules |
+| FS | Flight card scan (TTS mod 937, sheet 664) + the rulebook's 8 sample cards | Flight food numbers |
+| P2 | https://rulespal.com/evolution-promo-pack-ii/rulebook and https://boardmatch.app/en/game/181592 | Promo Pack II cards and food numbers |
+| P3 | Promo Pack III rules PDF: https://cdn.shopify.com/s/files/1/0283/4324/files/promo_pack_iii_rules_pdf.pdf (+ https://nemestats.com/GameDefinition/Details/123959) | Promo Pack III traits, scenarios |
+
+- **Versions** (setup picker): Base, Base + Flight, Climate (other branch; shown "soon" until built). Add-ons: Promo Pack I, Promo Pack II, Promo Pack II extras (estimated), Promo Pack III traits (estimated), one scenario. Old saves without `exp` are the base game (test "old base saves…"). The Daily and the guided game stay base.
+- **Deck** [F, FS]: base 129 + 48 Flight cards = 177 (34 traits + 14 events; Flight Carnivores −4,−3,−2,−1,7,8; the rest −1..5). The 12 Flight cards stay beside the board. Ids 0–128 never moved (test "deck sizes…").
+- **Set-up** [F Set-Up 3]: 40 cards are set aside; when the deck runs out they are used for the final round instead of shuffling the discards (tests "Flight set-up…", "when the deck runs out…").
+- **Cliff** [F, F2]: gets plant food equal to the number of players when the food cards are revealed; only an Avian plant eater eats there, one food per feeding (tests "the cliff gets…", "only an Avian…").
+- **Avian species** [F]: costs 2 cards; population 1, body 1, a Flight card on it; body size at most 3; first eats food equal to its body size (upkeep, back to the bank, never scored) (tests "an Avian species costs…", "body size stops at 3", "Avian upkeep…").
+- **Flight card** [F]: only a Carnivore with Flight may attack it; a Carnivore with Flight may discard a card to switch off Warning Call, Symbiosis or Climbing; it fills a trait slot and scores 1; swapping it out makes a land species for good; a dead Avian's Flight card goes back beside the board (tests "Flight defends…", "…switch off Warning Call…", "dropping Flight…", "a dead Avian's Flight card…").
+- **Brood Parasite, Camouflage, Good Eyesight, Nesting** [F, F2]: as printed; Brood Parasite and a plant eater's Good Eyesight act with the leaf traits, in turn order from the first player [F "Timing issues"]. Nesting's land food comes from the bank (the rulebook allows bank or watering hole; the bank is never worse, reasoned).
+- **Events** [F]: Dive-Bomb and Seed Dispersal are discarded after traits are revealed (the event step, players in turn order), then you draw 1; an event drawn this way may be played at once. Event cards are never traits (tests "event step: …", "event cards are never played as traits").
+- **Promo Pack I** [P2/P3 lists, exact]: Unstable DNA (test "Unstable DNA…").
+- **Promo Pack II** [P2, exact food numbers]: Last Stand (the attack waits while the owner decides), Pest, Pounce (one defending trait ignored for free), Quills, Sharp Teeth (tests named after each).
+- **Promo Pack II extras, Promo Pack III traits** [P2, P3]: Invasive Species, Rapid Mutation, Claws, Coprophagia, Insectivore, Mimicry, Timid, Trampling. **Food numbers are not published: estimated −1..5**, labelled "estimated food numbers" in the picker and Card info.
+- **Promo cards are added to the deck**, not swapped for same-colour base cards as the P3 sheet says: we don't have the card colours (reasoned; listed as a design choice).
+- **Scenarios** [P3]: Cretaceous Period, Great Permian Extinction, Land of Plenty, Plant Life Explosion, Teeming Hordes, Radioactive Atmosphere (one source, rulespal). Test "scenarios: …".
+- **Not built**: Darwinian Selection (never looking at your hand doesn't fit a phone screen), Runaway Warming and Snowball Earth (Climate only), the Plant micro-expansion (fill formula not confirmed), the single promos (Gigantism, ESP, Night Prowler, Hibernation: one source each, no rules text).
+- **Computers**: every new card and action; 25 seeded games across 5 versions end with every card accounted for (test "computers play legal moves…"). Ladder, 300 games each (Easy / Medium / Hard win share): Flight 0.7 / 12.8 / 86.5%, Flight + all promos 0.3 / 2.3 / 97.3%, Base + all promos 0.8 / 8.5 / 90.7% (base alone 1.3 / 28.3 / 70.3%).
+- **Online**: rooms carry the version; the public view shows the cliff and version and never the hands, seed or set-aside cards (test "online: a Flight room…").
+
 ## Simplifications
 - **Scavenger order:** Scavengers take meat clockwise from the attacker. The food bank is unlimited, so the order can't change a result (reasoned).
 
@@ -95,9 +122,7 @@ Status: every number below is asserted by `tests/engine.test.js`.
 - **Later printings:** whether any food number changed after 2017. The Climate reprints use different numbers, so this site does not mix in Climate cards.
 
 ## Parked
-- **Flight, Climate and Oceans**, each with its reason:
-  - Flight adds new boards and 47 cards.
-  - Climate is a standalone game with 177 cards and a climate track.
-  - Oceans is a different game.
-  - None of the three has a full public card list we could cross-check, so building one would mean guessing numbers.
+- ~~**Flight**~~: built 2026-11-09 from the card scan and the 2015 rulebook (see "Flight and the promo packs" above).
+- **Climate** is a standalone game with 177 cards and a climate track: being built on its own branch (exp-climate).
+- **Oceans** is a different game.
 - **1st printing (2014)**: higher numbers on Long Neck, Defensive Herding and Carnivore, Hard Shell +3, and Pack Hunting +3. Only three traits' values are published (thread 1362641), so a full 1st-printing deck can't be checked.
