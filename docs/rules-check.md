@@ -97,7 +97,7 @@ Sources, details in [expansions-research.md](expansions-research.md):
 | P2 | https://rulespal.com/evolution-promo-pack-ii/rulebook and https://boardmatch.app/en/game/181592 | Promo Pack II cards and food numbers |
 | P3 | Promo Pack III rules PDF: https://cdn.shopify.com/s/files/1/0283/4324/files/promo_pack_iii_rules_pdf.pdf (+ https://nemestats.com/GameDefinition/Details/123959) | Promo Pack III traits, scenarios |
 
-- **Versions** (setup picker): Base, Base + Flight, Climate (other branch; shown "soon" until built). Add-ons: Promo Pack I, Promo Pack II, Promo Pack II extras (estimated), Promo Pack III traits (estimated), one scenario. Old saves without `exp` are the base game (test "old base saves…"). The Daily and the guided game stay base.
+- **Versions** (setup picker): Base, Base + Flight, Climate (one choice, so Flight and Climate are never together). Add-ons: Promo Pack I, Promo Pack II, Promo Pack II extras (estimated), Promo Pack III traits (estimated), one scenario. Old saves without `exp` are the base game (test "old base saves…"). The Daily and the guided game stay base.
 - **Deck** [F, FS]: base 129 + 48 Flight cards = 177 (34 traits + 14 events; Flight Carnivores −4,−3,−2,−1,7,8; the rest −1..5). The 12 Flight cards stay beside the board. Ids 0–128 never moved (test "deck sizes…").
 - **Set-up** [F Set-Up 3]: 40 cards are set aside; when the deck runs out they are used for the final round instead of shuffling the discards (tests "Flight set-up…", "when the deck runs out…").
 - **Cliff** [F, F2]: gets plant food equal to the number of players when the food cards are revealed; only an Avian plant eater eats there, one food per feeding (tests "the cliff gets…", "only an Avian…").
@@ -114,6 +114,30 @@ Sources, details in [expansions-research.md](expansions-research.md):
 - **Computers**: every new card and action; 25 seeded games across 5 versions end with every card accounted for (test "computers play legal moves…"). Ladder, 300 games each (Easy / Medium / Hard win share): Flight 0.7 / 12.8 / 86.5%, Flight + all promos 0.3 / 2.3 / 97.3%, Base + all promos 0.8 / 8.5 / 90.7% (base alone 1.3 / 28.3 / 70.3%).
 - **Online**: rooms carry the version; the public view shows the cliff and version and never the hands, seed or set-aside cards (test "online: a Flight room…").
 
+## Evolution: Climate (version `climate`, checked 2026-11-09)
+Sources: **[CR]** the official [Climate rulebook PDF](https://cdn.shopify.com/s/files/1/0283/4324/files/Evolution-Climate-Rules-web.pdf); **[TTS]** card faces from Tabletop Simulator mods 937109867 and 2425085506 (two sources agree on every event); the full write-up and card table are in `docs/expansions-research.md` and `docs/expansions-data.json`. Code: `js/climate.js` (rules), small commented hooks in `js/engine.js`, cards 1000–1085 at the end of `js/cards.js`. All tests are in `tests/climate.test.js` (32); 30 of them failed on the pre-Climate code, and a 9-mutation run of `climate.js` was caught every time.
+- **Deck** [CR, TTS]: base deck minus Ambush, Burrowing, Defensive Herding and Carnivore (91 cards) + the 86 Climate cards = 177. Every card has 0–2 suns or snowflakes. Test "deck: 177 cards…", "deck: exact food + icons…".
+- **Setup** [CR]: set aside cards by players (2: half the deck, 3: 60, 4: 30, 5–6: none); max traits 3 at 2 players, else 4; deal 4 + 1 per species. Test "setup: set-aside cards…".
+- **Deck runs out** [CR]: the set-aside cards become the deck (not the discards) and the round is the last. Test "deck runs out…".
+- **Swap** [CR]: after playing, a player may put cards under the deck and draw as many (at most the deck size). Base games refuse it. Test "cycling…".
+- **Marker** [CR]: after the reveal, more suns → 1 zone warmer, more snowflakes → 1 colder, a tie stays; it stops at the ends. Test "marker…".
+- **Zones** [CR]: 9 zones, each with the body sizes it hits, the population loss and a leaf of food for 2–3 or 4–6 players. A negative leaf removes food, never below 0. Tests "heat loss…", "cold loss…", "cold zone…", "plant food = food cards + the zone leaf…".
+- **Protections** [CR, TTS]: Burrowing blocks 1 heat; Cooling Frills 3 heat; Heavy Fur 4 cold and loses 1 more to heat; Defensive Herding, Hibernation and Migratory block 1 cold each, and they stack. Extinction from climate loss draws cards as usual. Tests "heat loss…", "cold loss…".
+- **Events** [CR, TTS]: 30 cards (cold and hot decks shuffled apart), 1 cold + 1 hot face up under their zones. When the marker lands on an event's zone it replaces that zone's effect for the round, then goes to the bottom of its deck and is replaced; the new card can't trigger until next round; at most 1 event a round. Special cards: Meteorite (no positive plant food for the rest of the game), Volcanic Eruption (moves the marker after feeding), Glacial Thaw (3 extra suns next round), Desertification (every species −1 body, not below 1; no positive food), Wildfire (species without Burrowing lose 1; the round's food waits for the next deal). Tests "setup: one cold and one hot event…" and every "event: …" test.
+- **New traits** [CR, TTS]: Hibernation (up to 2 unfed population are not hungry and don't starve), Migratory (after feeding, with the hole empty, takes 2 plant food from the bank), Mud Wallowing (the attacker discards a card per attack), Cooling Frills (+2 size against attacks, not more meat), Heavy Fur (cold protection), Nocturnal (a free feeding before each of your feeding turns when no Carnivore could attack it). Changed: Ambush ignores one defending trait for free. Tests named after each trait.
+- **Simplifications in this build** (reasoned; listed for Tim):
+  - Nocturnal is applied automatically (no choice of which species; the threatening Carnivore is the biggest rival, no cards spent).
+  - A Mud Wallowing attack is never forced on a hungry Carnivore that can't pay.
+  - Heavy Fur's extra heat loss applies only in the hot zones (6–8).
+  - Desertification also caps Fat Tissue; Wildfire also holds back a negative total.
+  - Migratory with Foraging can take 3.
+  - At 2 players the set-aside pile is floor(177/2) = 88.
+  - Events are on by default; `events:false` is the no-events variant [CR].
+  - Computers never Swap. The forecast in the watering hole uses only the current zone.
+  - The attack log may name "Intelligence" for Ambush's free ignore.
+- **Computers**: 150 seeded Climate games at 2–6 players end with every move legal and all cards accounted for (test "computers: 150…"). Ladder, 400 games per pairing (`node tools/climate-sim.js 400 climate`): Hard>Easy 99.0%, Hard>Medium 69.0%, Medium>Easy 77.3%, Hard vs three Mediums 52.0% (fair share 25%). Base games are unchanged (300 seeded games identical to the previous engine).
+- **Merged with Flight** (2026-11-09): one version setting `exp = {v, promos, scen}` (Climate adds `events`); one card lookup `EvoCards.CARD` for ids 0–286 and 1000–1085. The promo packs are greyed out under Climate with "not with Climate" (they lean on Flight's event step, and Last Stand/Pounce don't know Mud Wallowing's cost; no designer guidance on mixing them; reasoned). Scenarios stay allowed with Climate; scenario trait limits apply after Climate's own limit.
+
 ## Simplifications
 - **Scavenger order:** Scavengers take meat clockwise from the attacker. The food bank is unlimited, so the order can't change a result (reasoned).
 
@@ -123,6 +147,6 @@ Sources, details in [expansions-research.md](expansions-research.md):
 
 ## Parked
 - ~~**Flight**~~: built 2026-11-09 from the card scan and the 2015 rulebook (see "Flight and the promo packs" above).
-- **Climate** is a standalone game with 177 cards and a climate track: being built on its own branch (exp-climate).
-- **Oceans** is a different game.
+- ~~**Climate**~~: built 2026-11-09 (see "Evolution: Climate" above).
+- **Oceans** stays parked (a different game).
 - **1st printing (2014)**: higher numbers on Long Neck, Defensive Herding and Carnivore, Hard Shell +3, and Pack Hunting +3. Only three traits' values are published (thread 1362641), so a full 1st-printing deck can't be checked.

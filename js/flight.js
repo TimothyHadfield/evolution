@@ -23,9 +23,10 @@
   'use strict';
   let K = null; // engine pieces, given by engine.js
   function bind(k) { K = k; }
-  const T = id => Cards.ALL[id].trait;
+  const T = id => Cards.CARD[id].trait; // every id (Climate cards are 1000+)
   const isFlight = s => K.X(s).v === 'flight';
-  const plain = s => { const x = K.X(s); return x.v === 'base' && !x.promos.length; }; // a base game: nothing here acts
+  // a game with neither Flight nor promos (base, or Climate alone): nothing here acts
+  const plain = s => { const x = K.X(s); return x.v !== 'flight' && !x.promos.length; };
   const findCard = (hand, t) => hand.find(id => T(id) === t);
 
   // ------------------------------------------------------------------ setup

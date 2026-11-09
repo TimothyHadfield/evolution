@@ -8,9 +8,9 @@
   else root.EvoOdds = factory(root.EvoCards, root.EvoEngine);
 })(typeof self !== 'undefined' ? self : this, function (Cards, E) {
   'use strict';
-  const ALL = Cards.ALL; // every card id (expansions included)
+  const CARD = Cards.CARD; // every card by id (Flight, promos and Climate included)
 
-  // the food numbers this seat has not seen: whole deck minus my hand, my food card,
+  // the food numbers this seat has not seen: this game's whole deck minus my hand, my food card,
   // traits face up on any board, my own face-down traits, and food cards revealed earlier
   function unseenFoods(v) {
     const seen = new Set();
@@ -21,7 +21,7 @@
     (v.hist || []).forEach(h => (h.foodCards || []).forEach(id => seen.add(id)));
     const out = [];
     // the cards this game was built from (expansions add cards; the Flight cards never hold a food number)
-    for (const id of Cards.buildDeck(v.exp)) if (!seen.has(id) && ALL[id].food != null) out.push(ALL[id].food);
+    for (const id of Cards.buildDeck(v.exp || { v: v.version })) if (!seen.has(id) && CARD[id].food != null) out.push(CARD[id].food);
     return out;
   }
 
@@ -64,9 +64,12 @@
     const others = v.players.filter((pl, p) => p !== v.seat && (pl.handSize > 0 || pl.foodPicked)).length;
     const foods = unseenFoods(v);
     const dist = sumDist(foods, Math.min(others, foods.length));
-    const base = v.hole + (myFood || 0);
+    // Climate: the current zone's plant food is added too (if the marker moves at the reveal, this is off by
+    // one zone); after a Meteorite a positive total adds nothing
+    const cl = v.climate;
+    const total = sum => { let t = (myFood || 0) + sum + (cl ? cl.leaf || 0 : 0); if (cl && cl.meteor && t > 0) t = 0; return t; };
     const after = new Map();
-    for (const d of dist) { const h = Math.max(0, base + d.sum); after.set(h, (after.get(h) || 0) + d.p); }
+    for (const d of dist) { const h = Math.max(0, v.hole + total(d.sum)); after.set(h, (after.get(h) || 0) + d.p); }
     const list = [...after.entries()].sort((a, b) => a[0] - b[0]).map(([h, p]) => ({ h, p }));
     const mean = list.reduce((a, x) => a + x.h * x.p, 0);
     const q = f => { let c = 0; for (const x of list) { c += x.p; if (c >= f) return x.h; } return list.length ? list[list.length - 1].h : 0; };
@@ -78,7 +81,7 @@
   function plantDemand(v) {
     let need = 0;
     v.players.forEach(pl => pl.species.forEach(sp => {
-      const carn = sp.traits.some(id => ALL[id].trait === 'Carnivore');
+      const carn = sp.traits.some(id => CARD[id].trait === 'Carnivore');
       // an Avian (Flight) first needs food equal to its body size (upkeep)
       if (!carn) need += Math.max(0, sp.pop - sp.food) + (sp.av ? Math.max(0, sp.body - (sp.up || 0)) : 0);
     }));
@@ -88,7 +91,7 @@
   // threat map from a view: for each species, the carnivores that can attack it now.
   // Works on a view (face-down traits count as unknown = ignored, like at the table).
   function threatMap(v) {
-    const s = { players: v.players.map(pl => ({ species: pl.species.map(sp => ({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(), hidden: [], av: sp.av, up: sp.up, tmp: sp.tmp, noAtk: sp.noAtk })) })) };
+    const s = { climate: v.climate, players: v.players.map(pl => ({ species: pl.species.map(sp => ({ id: sp.id, body: sp.body, pop: sp.pop, food: sp.food, fat: sp.fat, traits: sp.traits.slice(), hidden: [], av: sp.av, up: sp.up, tmp: sp.tmp, noAtk: sp.noAtk })) })) };
     const out = [];
     s.players.forEach((pl, cp) => pl.species.forEach((C, ci) => {
       if (!E.isCarn(C)) return;

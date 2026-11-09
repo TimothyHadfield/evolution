@@ -16,12 +16,12 @@
    a network move for them. state.stepBots leaves computer FEEDING turns to the screen (so you can
    watch them one at a time on this device). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'), require('./flight.js'));
-  else root.EvoEngine = factory(root.EvoCards, root.EvoFlight);
-})(typeof self !== 'undefined' ? self : this, function (Cards, Flight) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./cards.js'), require('./flight.js'), require('./climate.js'));
+  else root.EvoEngine = factory(root.EvoCards, root.EvoFlight, root.EvoClimate);
+})(typeof self !== 'undefined' ? self : this, function (Cards, Flight, Climate) {
   'use strict';
-  // every card id any game can hold (base 0-128, expansions after); the base deck alone is Cards.DECK
-  const DECK = Cards.ALL;
+  // every card any game can hold, by id (base 0-128, Flight + promos 129-286, Climate 1000+); the base deck alone is Cards.DECK
+  const CARD = Cards.CARD;
   const MAX = 6;
   // the expansion rules of this game (state.exp; saves from before it are the base game)
   const BASE_EXP = { v: 'base', promos: [], scen: null };
@@ -43,7 +43,7 @@
   }
 
   // ------------------------------------------------------------------ helpers
-  const trait = id => DECK[id].trait;
+  const trait = id => CARD[id].trait;
   // has(species, trait, ignore) - ignore = list of trait names switched off by Intelligence.
   // sp.tmp = traits a species holds for this round only (Mimicry, Claws' Climbing)
   const has = (sp, t, ignore) => !(ignore && ignore.indexOf(t) >= 0) && (sp.traits.some(id => trait(id) === t) || !!(sp.tmp && sp.tmp.indexOf(t) >= 0));
@@ -54,7 +54,9 @@
   const upNeed = sp => (sp.av ? Math.max(0, sp.body - (sp.up || 0)) : 0);
   const needFood = sp => Math.max(0, sp.pop - sp.food) + upNeed(sp);   // "hungry" in the rules
   const canTake = sp => needFood(sp) + fatRoom(sp);       // food it may still take (Fat Tissue counts)
-  const hungry = sp => needFood(sp) > 0;
+  // Climate hook: Hibernation lets up to 2 unfed population not count as hungry (only Climate cards carry it)
+  const hib = sp => (Climate ? Climate.hib(sp) : 0);
+  const hungry = sp => needFood(sp) - hib(sp) > 0;
   // one food onto a species: Avian upkeep first, then population, then Fat Tissue
   function addFood(sp) { if (upNeed(sp) > 0) sp.up = (sp.up || 0) + 1; else if (sp.food < sp.pop) sp.food++; else sp.fat++; }
   // an Avian's body grew: food already on its population moves down to the upkeep spaces (Flight rulebook, Nesting)
@@ -79,12 +81,16 @@
     const v = ['base', 'flight', 'climate'].indexOf(e.v) >= 0 ? e.v : 'base';
     const promos = (Array.isArray(e.promos) ? e.promos : []).filter((k, i, a) => Cards.PROMOS[k] && a.indexOf(k) === i);
     const scen = e.scen && Cards.SCENARIOS[e.scen] ? e.scen : null;
-    return Object.assign({}, e, { v, promos, scen });
+    const out = Object.assign({}, e, { v, promos, scen });
+    // Climate: events on unless switched off (the no-events variant); other versions carry no flag
+    if (v === 'climate') out.events = e.events !== false; else delete out.events;
+    return out;
   }
   function newGame(o) {
     o = o || {};
     const n = Math.max(2, Math.min(6, (o.players || []).length || 2));
-    const exp = cleanExp(o.exp);
+    // o.version / o.events (Climate's older shape) = o.exp {v, events}
+    const exp = cleanExp(o.exp || (o.version ? { v: o.version, events: o.events } : null));
     const s = {
       v: 1, seed: (o.seed >>> 0) || 1, round: 0, phase: 'deal', first: 0, turn: -1, playTurn: -1, passes: 0, fluid: o.fluid !== false,
       deck: [], discard: [], hole: 0, nextId: 1, log: [], lastRound: false, lastNext: false, over: false, result: null,
@@ -93,16 +99,19 @@
       hist: [], stepBots: !!o.stepBots, trace: o.trace ? { rounds: [], life: [] } : null,
       exp, players: [],
     };
-    if (exp.scen === 'Cretaceous Period') s.maxTraits = 99;
-    if (exp.scen === 'Great Permian Extinction') s.maxTraits = 1;
     for (let i = 0; i < n; i++) {
       const pl = (o.players && o.players[i]) || {};
       s.players.push({ name: Array.from(String(pl.name || 'Player ' + (i + 1))).slice(0, 24).join(''), bot: pl.bot || null,
         hand: [], bag: 0, species: [], foodCard: null, done: false, eaten: 0 });
     }
     s.deck = shuffle(s, Cards.buildDeck(exp));
-    if (n === 2) { s.deck.splice(0, 40); s.removed = 40; }
+    // Climate hook: exp.v 'climate' sets aside its own cards and builds the climate board (events: exp.events)
+    if (exp.v === 'climate' && Climate) Climate.setup(s, { events: exp.events });
+    else if (n === 2) { s.deck.splice(0, 40); s.removed = 40; }
     if (Flight) Flight.setup(s, n); // Flight: the cliff, the 12 Flight cards, 40 cards set aside for the end
+    // scenarios (after Climate's own trait limit)
+    if (exp.scen === 'Cretaceous Period') s.maxTraits = 99;
+    if (exp.scen === 'Great Permian Extinction') s.maxTraits = 1;
     s.first = Math.floor(rand(s) * n);
     startRound(s);
     autoplay(s);
@@ -117,7 +126,7 @@
     let reshuffled = false;
     for (let i = 0; i < k; i++) {
       if (!s.deck.length && s.reserve && s.reserve.length) {
-        // Flight: the 40 cards set aside at the start are used instead of shuffling the discard pile
+        // Flight and Climate: the cards set aside at the start are used instead of shuffling the discard pile
         s.deck = s.reserve; s.reserve = []; reshuffled = true;
       }
       if (!s.deck.length) {
@@ -135,6 +144,7 @@
   function startRound(s) {
     s.round++;
     if (s.lastNext) { s.lastRound = true; s.lastNext = false; }
+    if (s.climate) Climate.beforeDeal(s); // Climate hook: Wildfire food held back reaches the watering hole
     s.hist.push({ round: s.round, holeStart: s.hole, foodCards: [], added: 0, eaten: s.players.map(() => 0), popLost: s.players.map(() => 0), attacks: 0, extinct: 0 });
     // 1. deal: a new species for anyone with none, then 3 cards + 1 per species, from the first player
     s.players.forEach(pl => { if (!pl.species.length) pl.species.push(newSpecies(s)); });
@@ -142,7 +152,8 @@
     const scen = X(s).scen;
     for (let k = 0; k < s.players.length; k++) {
       const p = (s.first + k) % s.players.length;
-      const nDeal = scen === 'Land of Plenty' && s.round === 1 ? 10 : 3 + s.players[p].species.length * (scen === 'Radioactive Atmosphere' ? 2 : 1);
+      // Climate hook: 4 + 1 per species
+      const nDeal = scen === 'Land of Plenty' && s.round === 1 ? 10 : (s.climate ? Climate.dealBase() : 3) + s.players[p].species.length * (scen === 'Radioactive Atmosphere' ? 2 : 1);
       if (draw(s, p, nDeal)) {
         s.lastRound = true;
         log(s, -1, 'The deck ran out while dealing: discards reshuffled. This is the last round.', 'sys');
@@ -173,21 +184,28 @@
   // '' if Carnivore (cp,ci) may attack (tp,ti), else a plain reason. ignore = trait names that
   // Intelligence switched off for this attack (one card each).
   function attackBlock(s, cp, ci, tp, ti, ignore) {
+    // Climate hook: Ambush ignores one defending trait of a Migratory species for free
+    if (s.climate && Climate) ignore = Climate.withAmbush(s, cp, ci, tp, ti, ignore, attackBlock0);
+    return attackBlock0(s, cp, ci, tp, ti, ignore);
+  }
+  function attackBlock0(s, cp, ci, tp, ti, ignore) {
     const C = s.players[cp].species[ci], T = s.players[tp].species[ti];
     if (!C || !T) return 'No such species';
     if (C === T) return 'A Carnivore can’t eat itself';
     if (!isCarn(C)) return 'Not a Carnivore';
     if (C.noAtk) return 'Quills: it can’t attack again this round';
     const tHas = t => has(T, t, ignore);
-    // Claws: 2 bigger when it attacks or is attacked. Sharp Teeth ('Size' switched off): any size
+    // Claws: 2 bigger when it attacks or is attacked. Sharp Teeth ('Size' switched off): any size.
+    // Cooling Frills (Climate card): +2 size against attacks
     const atk = C.body + (has(C, 'Pack Hunting') ? C.pop : 0) + (has(C, 'Claws') ? 2 : 0);
-    const def = T.body + (tHas('Hard Shell') ? 4 : 0) + (tHas('Claws') ? 2 : 0);
-    if (atk <= def && !(ignore && ignore.indexOf('Size') >= 0)) return tHas('Hard Shell') ? 'Hard Shell: needs size over ' + def : 'Too big: needs size over ' + def;
+    const def = T.body + (tHas('Hard Shell') ? 4 : 0) + (tHas('Claws') ? 2 : 0) + (tHas('Cooling Frills') ? 2 : 0);
+    if (atk <= def && !(ignore && ignore.indexOf('Size') >= 0)) return tHas('Hard Shell') ? 'Hard Shell: needs size over ' + def : tHas('Cooling Frills') ? 'Cooling Frills: needs size over ' + def : 'Too big: needs size over ' + def;
     if (tHas('Timid')) return 'Timid: it can’t be attacked';
     if (tHas('Flight') && !has(C, 'Flight')) return 'Flight: attacker needs Flight';
     if (tHas('Camouflage') && !has(C, 'Good Eyesight')) return 'Camouflage: attacker needs Good Eyesight';
     if (tHas('Climbing') && !has(C, 'Climbing')) return 'Climbing: attacker needs Climbing';
-    if (tHas('Burrowing') && T.food >= T.pop) return 'Burrowing: it has eaten its fill';
+    // Burrowing: safe while its population is fed (Hibernation's 2 free population count as fed; an Avian's upkeep doesn't count)
+    if (tHas('Burrowing') && T.food + hib(T) >= T.pop) return 'Burrowing: it has eaten its fill';
     if (tHas('Defensive Herding') && C.pop <= T.pop) return 'Defensive Herding: needs more population';
     const row = s.players[tp].species;
     const left = row[ti - 1], right = row[ti + 1];
@@ -196,6 +214,8 @@
       ((left && has(left, 'Warning Call')) || (right && has(right, 'Warning Call')))) return 'Warning Call next to it: attacker needs Ambush';
     return '';
   }
+  // the traits an attack really ignores: Intelligence's list (+ Ambush's free one against Migratory, Climate)
+  function attackIgnore(s, cp, ci, tp, ti, ignore) { return s.climate && Climate ? Climate.withAmbush(s, cp, ci, tp, ti, ignore || [], attackBlock0) : (ignore || []); }
   // what a Carnivore can switch off by discarding one card per trait:
   //   Intelligence: any defending trait; Flight (expansion): Warning Call, Symbiosis or Climbing;
   //   Sharp Teeth (promo): 'Size' = the body size rule, for this attack
@@ -211,8 +231,9 @@
     const T = s.players[tp].species[ti];
     const row = s.players[tp].species;
     const cand = Cards.XDEFENSES.filter(t => has(T, t) || (t === 'Warning Call' && ((row[ti - 1] && has(row[ti - 1], t)) || (row[ti + 1] && has(row[ti + 1], t))))).concat(['Size']);
-    // Horns / Quills do not block; switching them off only spares the attacker (left to the player)
-    const blockers = cand.filter(t => t !== 'Horns' && t !== 'Quills' && canIgnore(C, t));
+    // Horns / Quills do not block; switching them off only spares the attacker (left to the player).
+    // Mud Wallowing (Climate) only costs a card
+    const blockers = cand.filter(t => t !== 'Horns' && t !== 'Quills' && t !== 'Mud Wallowing' && canIgnore(C, t));
     for (let size = 1; size <= Math.min(maxCards, blockers.length); size++) {
       const combos = [];
       (function rec(start, acc) {
@@ -250,7 +271,11 @@
         s.players.forEach((op, tp) => op.species.forEach((T, ti) => {
           if (tp === p && ti === i) return;
           const need = intelNeeded(s, p, i, tp, ti, handN);
-          if (need) out.push({ t: 'attack', s: sp.id, target: T.id, ignore: need, must: must && need.length === 0 });
+          if (!need) return;
+          // Climate hook: Mud Wallowing costs one more card from the hand (mud = 1); not a forced feeding
+          const mud = s.climate ? Climate.mudCost(T, attackIgnore(s, p, i, tp, ti, need)) : 0;
+          if (need.length + mud > handN) return;
+          out.push(Object.assign({ t: 'attack', s: sp.id, target: T.id, ignore: need, must: must && need.length === 0 && !mud }, mud ? { mud } : {}));
         }));
       }
     });
@@ -299,6 +324,10 @@
       for (const m of a.moves) playOne(s, test, m, made, disc);
       if (s.fluid) placeFood(test, pl.hand.length > 0, a.food);
       else if (a.food != null) throw new Error('The food cards are already placed');
+      // Climate hook: after playing, cards from hand may go under the deck for as many new ones (a.cycle)
+      const cyc = a.cycle && a.cycle.length ? (s.climate ? Climate.cycle(s, test, a.cycle) : null) : null;
+      if (a.cycle && a.cycle.length && !cyc) throw new Error('Putting cards back is a Climate rule');
+      if (cyc) cyc();
       s.players[seat] = test;
       s.discard.push(...disc);
       if (Flight) Flight.afterPlays(s, seat, a.moves, made); // Nesting on a face-up board that gained population
@@ -505,10 +534,12 @@
     const H = cur(s);
     s.leaf = null;
     let sum = 0;
-    s.players.forEach(pl => { if (pl.foodCard >= 0) { sum += DECK[pl.foodCard].food; H.foodCards.push(pl.foodCard); s.discard.push(pl.foodCard); } });
-    s.hole = Math.max(0, s.hole + sum);
+    s.players.forEach(pl => { if (pl.foodCard >= 0) { sum += CARD[pl.foodCard].food; H.foodCards.push(pl.foodCard); s.discard.push(pl.foodCard); } });
+    // Climate hook: Modify Environment (marker, event, heat/cold loss, the zone's leaf number)
+    const add = s.climate ? Climate.modify(s, sum) : sum;
+    s.hole = Math.max(0, s.hole + add);
     H.added = sum;
-    log(s, -1, 'Food cards add ' + (sum >= 0 ? '+' : '') + sum + '. Watering hole: ' + s.hole + '.', 'sys');
+    log(s, -1, 'Food cards add ' + (sum >= 0 ? '+' : '') + sum + (add !== sum ? ' (' + (add >= 0 ? '+' : '') + add + ' with the climate)' : '') + '. Watering hole: ' + s.hole + '.', 'sys');
     if (Flight) Flight.onFoodReveal(s); // the cliff fills; Unstable DNA
     s.phase = 'feed';
     s.turn = s.first;
@@ -616,14 +647,19 @@
       if (ignore.length) {
         if (!(has(sp, 'Intelligence') || has(sp, 'Flight') || has(sp, 'Sharp Teeth'))) throw new Error('Needs Intelligence');
         if (ignore.some(t => !canIgnore(sp, t))) throw new Error('Intelligence only switches off defending traits');
-        if (cards.length !== ignore.length || new Set(cards).size !== cards.length || cards.some(c => pl.hand.indexOf(c) < 0)) throw new Error('Discard one card for each trait you switch off');
       }
       const why = attackBlock(s, p, loc.i, tl.p, tl.i, ignore);
       if (why) throw new Error(why);
-      for (const c of cards.slice(0, ignore.length)) { pl.hand.splice(pl.hand.indexOf(c), 1); s.discard.push(c); }
+      // Climate hook: Mud Wallowing on the prey = one more card discarded before the attack
+      const eff = attackIgnore(s, p, loc.i, tl.p, tl.i, ignore);
+      const mud = s.climate ? Climate.mudCost(tl.sp, eff) : 0;
+      const nCards = ignore.length + mud;
+      if (nCards && (cards.length !== nCards || new Set(cards).size !== cards.length || cards.some(c => pl.hand.indexOf(c) < 0)))
+        throw new Error(mud && !ignore.length ? 'Mud Wallowing: discard a card to attack it' : 'Discard one card for each trait you switch off' + (mud ? ', plus one for Mud Wallowing' : ''));
+      for (const c of cards.slice(0, nCards)) { pl.hand.splice(pl.hand.indexOf(c), 1); s.discard.push(c); }
       // Last Stand (promo): the prey's owner may answer first; the feeding goes on once they have
-      if (Flight && Flight.lastStandAsk(s, p, sp.id, tl.sp.id, ignore, 'feed')) return;
-      attack(s, p, loc.i, tl.p, tl.i, ignore);
+      if (Flight && Flight.lastStandAsk(s, p, sp.id, tl.sp.id, eff, 'feed')) return;
+      attack(s, p, loc.i, tl.p, tl.i, eff);
     } else throw new Error('Bad move');
     s.passes = 0;
     nextTurn(s);
@@ -694,6 +730,7 @@
   function nextTurn(s) {
     s.turn = (s.turn + 1) % s.players.length;
     if (s.fseq != null) s.fseq++;
+    if (s.climate) s.climate.tick++; // Climate hook: a new feeding turn (Nocturnal feeds before each one)
     settleTurn(s);
   }
   // skip players with nothing they could do; end the round once everyone in a row has passed
@@ -702,11 +739,13 @@
     for (let guard = 0; guard < 4 * n + 4; guard++) {
       if (s.passes >= n) return endRound(s);
       if (Flight) Flight.turnStart(s); // Insectivore: before each of your feeding turns
+      if (s.climate) Climate.beforeTurn(s); // Climate hook: Nocturnal's free feeding
       const opts = feedOptions(s, s.turn);
       if (opts.length) return; // this player decides (feed, or pass if allowed)
       s.passes++;
       s.turn = (s.turn + 1) % n;
       if (s.fseq != null) s.fseq++;
+      if (s.climate) s.climate.tick++;
     }
     endRound(s);
   }
@@ -715,10 +754,12 @@
   function endRound(s) {
     s.turn = -1;
     const H = cur(s);
+    if (s.climate) Climate.afterFeeding(s); // Climate hook: Migratory, Volcanic Eruption
     s.players.forEach((pl, p) => {
       for (const sp of pl.species.slice()) {
         if (s.trace) s.trace.rounds.push([sp.traits.map(trait).sort().join('|'), sp.food, sp.pop, p]);
-        if (sp.food < sp.pop) { H.popLost[p] += sp.pop - sp.food; log(s, p, pname(s, p) + '’s ' + sp.body + '/' + sp.pop + ' species starves to population ' + sp.food + '.'); sp.pop = sp.food; }
+        const fedTo = Math.min(sp.pop, sp.food + hib(sp)); // Hibernation: 2 unfed population don't starve
+        if (fedTo < sp.pop) { H.popLost[p] += sp.pop - fedTo; log(s, p, pname(s, p) + '’s ' + sp.body + '/' + sp.pop + ' species starves to population ' + fedTo + '.'); sp.pop = fedTo; }
         pl.bag += sp.food;
         sp.food = 0;
         if (sp.av) sp.up = 0; // Avian upkeep food goes back to the bank, never into the bag
@@ -781,8 +822,8 @@
       deckSize: s.deck.length, discardSize: s.discard.length, quick: s.quick, maxTraits: s.maxTraits, removed: s.removed,
       lastRound: s.lastRound, lastNext: s.lastNext, over: s.over, result: s.over ? s.result : null, toAct: toAct(s), log: s.log.slice(-80), leaf: s.phase === 'leaf' && s.leaf ? clone(s.leaf) : null,
       canPass: s.phase === 'feed' && s.turn === seat ? canPass(s, seat) : false,
-      hist: s.hist.map(h => ({ round: h.round, added: hidingFood && h === last ? null : h.added, eaten: h.eaten, popLost: h.popLost, attacks: h.attacks,
-        extinct: h.extinct, scores: h.scores || null, foodCards: hidingFood && h === last ? [] : h.foodCards.slice() })),
+      hist: s.hist.map(h => Object.assign({ round: h.round, added: hidingFood && h === last ? null : h.added, eaten: h.eaten, popLost: h.popLost, attacks: h.attacks,
+        extinct: h.extinct, scores: h.scores || null, foodCards: hidingFood && h === last ? [] : h.foodCards.slice() }, h.cl ? { cl: clone(h.cl) } : {})),
       seat,
       players: s.players.map((pl, p) => ({
         name: pl.name, bot: !!pl.bot, handSize: pl.hand.length, done: pl.done, foodPicked: pl.foodCard !== null,
@@ -793,6 +834,9 @@
           sp.av ? { av: true, up: sp.up || 0 } : {}, sp.tmp && sp.tmp.length ? { tmp: sp.tmp.slice() } : {}, sp.noAtk ? { noAtk: true } : {}, sp.inv ? { inv: true } : {})),
       })),
     };
+    // Climate hook: the game version and the public climate board (never the event decks' order)
+    if (s.version) v.version = s.version;
+    if (s.climate) v.climate = Climate.view(s);
     if (seat >= 0 && s.players[seat]) {
       const me = s.players[seat];
       v.me = { hand: me.hand.slice(), foodCard: me.foodCard, bag: me.bag };
@@ -801,10 +845,12 @@
   }
 
   const api = { newGame, apply, applyRaw, toAct, view, feedOptions, canPass, attackBlock, intelNeeded, score, setBot, leafActs, leafOne,
-    hungry, canTake, needFood, isCarn, has, trait, MAX, rand, shuffle, clone, findSp, maxBody, upNeed, canIgnore, X };
+    hungry, canTake, needFood, isCarn, has, trait, MAX, rand, shuffle, clone, findSp, maxBody, upNeed, canIgnore, X, attackIgnore, hib, CARD };
   // the expansion rules (js/flight.js) work on the same state with these engine pieces
   if (Flight) Flight.bind({ X, has, isCarn, trait, take, gainPop, attack, attackBlock, intelNeeded, canTake, hungry, needFood, draw, log, pname, findSp,
     newSpecies, nextTurn, leafStart, extinct, loseOne, cur, eachInOrder, settleUp, canIgnore, Cards, MAX });
   if (Flight) api.eventOptions = Flight.eventOptions;
+  // Climate hook: climate.js uses these engine pieces
+  if (Climate) Climate.bind({ has, isCarn, hungry, canTake, needFood, take, attack, attackBlock, attackBlock0, intelNeeded, extinct, log, pname, cur, shuffle, rand, findSp, MAX });
   return api;
 });
