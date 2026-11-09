@@ -934,6 +934,8 @@
     return fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === id);
   }
 
+  // the lifted card's full text (name, effect, food number) while you play it
+  const infoBtn = () => '<button class="btn" data-act="cardinfo">Card info</button>';
   function actionBar(v, myTurn, fo, dv) {
     if (v.over) return '<button class="btn" data-go="study">Study</button><button class="btn primary" data-go="new">New game</button>';
     if (table.online && net.busy) return '<span class="msg">Sending…</span>';
@@ -947,12 +949,12 @@
       if (!dv.hand.length) return '<span class="msg"><b>No cards</b> to place as food.</span><button class="btn primary" data-act="nofood">Go on</button>';
       if (ui.sel == null) return '<span class="msg"><b>Pick a food card.</b> Its number goes into the watering hole.</span>';
       const f = DECK[ui.sel].food;
-      return '<span class="msg">Adds <b>' + fmtFood(f) + '</b> plant food</span><button class="btn primary" data-act="food">Use as food</button>';
+      return '<span class="msg">Adds <b>' + fmtFood(f) + '</b> plant food</span>' + infoBtn() + '<button class="btn primary" data-act="food">Use as food</button>';
     }
     if (v.phase === 'play' && v.fluid) {
       // one step: cards to species, the watering hole (food card) or the discard pile (grow), any order
       if (ui.grow != null) return '<span class="msg">Tap <b>Body</b>, <b>Pop</b> or <b>+</b> to grow.</span><button class="btn" data-act="growcancel">Cancel</button>';
-      if (ui.sel != null) return '<span class="msg">Tap a <b>species</b>, the <b>watering hole</b> or the <b>discard pile</b>.</span>';
+      if (ui.sel != null) return '<span class="msg">Tap a <b>species</b>, the <b>watering hole</b> or the <b>discard pile</b>.</span>' + infoBtn();
       const n = ui.draft.length + (ui.food != null ? 1 : 0);
       const needFood = !!(v.me && v.me.hand.length) && ui.food == null;
       const undo = n ? '<button class="btn" data-act="undo">Undo</button>' : '';
@@ -963,7 +965,7 @@
     if (v.phase === 'play') {
       const n = ui.draft.length;
       if (ui.sel != null) {
-        return '<div class="seg grow" data-mode>' + [['trait', 'Trait'], ['body', 'Body +1'], ['pop', 'Pop +1']].map(([k, l]) => '<button aria-pressed="' + (ui.mode === k) + '" data-mode="' + k + '">' + l + '</button>').join('') + '</div>';
+        return '<div class="seg grow" data-mode>' + [['trait', 'Trait'], ['body', 'Body +1'], ['pop', 'Pop +1']].map(([k, l]) => '<button aria-pressed="' + (ui.mode === k) + '" data-mode="' + k + '">' + l + '</button>').join('') + '</div>' + infoBtn();
       }
       return (n ? '<button class="btn" data-act="undo">Undo</button>' : '<span class="msg">Tap a card, then a species. <b>+</b> makes a new one.</span>') +
         '<button class="btn primary" data-act="done">' + (n ? 'Done (' + n + ')' : 'Done') + '</button>';
@@ -1237,6 +1239,7 @@
       send({ t: 'food', card: c }); return;
     }
     if (k === 'nofood') { send({ t: 'food' }); return; }
+    if (k === 'cardinfo') { if (ui.sel != null) cardSheet(ui.sel); return; }
     if (k === 'growcancel') { sfx('cardSlide', { pitch: 0.8 }); ui.grow = null; renderPlay(); return; }
     // fluid play: Undo takes back the last thing placed (the food card counts); Done sends it all in one move
     if (k === 'undo' && v.fluid && v.phase === 'play' && ui.food != null && ui.foodAt >= ui.draft.length) { takeBackFood(); return; }

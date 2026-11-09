@@ -55,7 +55,8 @@ Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mj
 | Three-way tie | — | goes to population (test) |
 
 ## Authorized next steps
-- (none beyond the brief)
+- 2026-11-09 · Tim (direct go in chat): "make the card playing stage more fluid for the user so that they can choose to do any order of the playing cards, upgrading, etc. This means they can pick a card, either place it on a species, discard pile, or watering hole, or go back and take the card the placed back before they're finally done and are ready for the next phase of the game. If they discard a card from their hand, highlight species body size, population, or new species card which they need to pick. Basically keep everything the same except allow the user to choose when they place it in the watering hole" → builder on branch `fluid-play` (wt `C:/Users/timha/AppData/Local/Temp/claude/wt/evolution-fluid`): engine `s.fluid` (food card chosen inside your play turn), bots, UI with take-back sheet. Guided game stays non-fluid.
+- 2026-11-09 · Tim: "Also could you build all expansion versions with flight, event cards, and varius other cards? Allow the user to choose if they're using expansion or varius versions. Make sure game machanics are still functional." → overrides the old "Rejected: Flight, Climate…" entries. Step 1: research agent writes `docs/expansions-research.md` + `docs/expansions-data.json`; step 2: an expansions builder on top of `fluid-play` once it merges.
 
 ## Standing instructions (Tim's words)
 - "build regular play online with a computer or other online players for all the games and their common varients that match exactly the play of the in-person game"

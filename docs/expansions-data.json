@@ -1,0 +1,296 @@
+{
+  "_meta": {
+    "written": "2026-11-09",
+    "base": "Evolution 2nd edition (North Star Games, 2017): 129 cards, 17 traits. Data in js/cards.js.",
+    "notation": "food = number printed in the card's corner (plant food added to the Watering Hole when played face-down as a food card). Climate cards also carry climate icons: 'S' = sun count, 'C' = snowflake count, so climate {S:3} means 3 suns.",
+    "confidence": "Labels (cross-check pass 2026-11-09): 'exact, 2 sources' = two independently made images/documents agree; 'exact, 1 source' = read clearly from one card scan (several TTS mods reuse the SAME byte-identical image, which counts as one source); 'missing' = not found. Older labels 'exact'/'partial' map to these as stated per card.",
+    "independence_note": "Byte-identical check: imgur oOaEAMt.jpg (mods 916706796, 1803181337, 896622326, 2041385428) has SHA1 74AF0B5B..., the same hash as mod 937's Flight sheet 664 and mod 2135629760's sheet 645. Promo sheet 2LzwYma.jpg = 814212FE... = 937 sheet 663. So all known Flight and promo card scans are ONE source. Climate event sheets in mod 2425085506 (5x3 grid, different hash) are a separate source from mod 937's sheets 669/670.",
+    "official_pdfs_found": {
+      "flight_rulebook_2015": "Official 8-page North Star Flight rulebook (InDesign, May 2015), embedded in TTS mod 2041385428: https://steamusercontent-a.akamaihd.net/ugc/1029576743442596773/19637A42B84D25D110ED0D83240B65F4EE0B8A45/",
+      "climate_rulebook": "https://cdn.shopify.com/s/files/1/0283/4324/files/Evolution-Climate-Rules-web.pdf",
+      "climate_conversion_rules": "https://steamusercontent-a.akamaihd.net/ugc/1029576743442601686/1B7AF8284C201B4C50E747337DE7989AF02BE973/"
+    },
+    "tts_mods": {
+      "937109867": "Evolution + Expansions (Steam Workshop). Card sheets 661/662 (Climate), 664 (Flight), 663/654 (promos), 669/670 (climate events), 671/672 (Flight boards/cards), 653 (scenario cards)",
+      "2425085506": "Evolution Climate semi-scripted. Sheets 4 and 4959 (climate kit), 1 and 3 (events, 5x3 grid)",
+      "916706796": "Evolution + flight (second Flight source, not cross-checked)",
+      "2066510123": "Base 2nd edition (source of the existing cards.js)"
+    },
+    "steam_api": "POST https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/ (itemcount=1, publishedfileids[0]=ID) -> file_url is the BSON save"
+  },
+  "products": {
+    "flight": {
+      "name": "Evolution: Flight",
+      "type": "expansion for base Evolution",
+      "year": "2015 Kickstarter, retail 2016",
+      "buildable": "yes",
+      "food_confidence": "exact, 1 source for the full per-copy lists (one card scan, reused by 6 TTS mods). Spot-checked against the official 2015 rulebook's sample card pictures: Brood Parasite 5, Dive-Bomb 4 and 2, Camouflage -1, Good Eyesight -1, Nesting 0, Seed Dispersal 1 and -1 all appear in the lists below (agree, but don't prove the full sets). The 6 extra Carnivores (-4,-3,-2,-1,7,8): exact, 1 source.",
+      "components": "34 trait cards + 14 event cards (48 deck cards), 12 Flight trait cards (cardboard, kept out of the deck), 12 Avian species boards, 1 Cliff board",
+      "cards": [
+        {"trait": "Brood Parasite", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "Land species: no effect. Avian species: before food cards are revealed, if you have another Avian species, gain 1 population and take 1 plant or meat food from the bank.", "confidence": "exact (mod 937 sheet 664)"},
+        {"trait": "Camouflage", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "defensive": true, "effect": "A Carnivore must have Good Eyesight to attack this species.", "confidence": "exact"},
+        {"trait": "Good Eyesight", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "Carnivore: negates Camouflage. Non-Carnivore: before food cards are revealed, take 2 plant food from the Watering Hole.", "confidence": "exact"},
+        {"trait": "Nesting", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "Each time this species gains population: a Land species takes 1 plant food from the bank or Watering Hole; an Avian species takes 2 meat food from the bank.", "confidence": "exact"},
+        {"trait": "Carnivore", "count": 6, "food": [-4, -3, -2, -1, 7, 8], "kind": "trait", "effect": "Same as base Carnivore (these are extra copies).", "confidence": "exact"},
+        {"trait": "Dive-Bomb", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "event", "effect": "Discard from hand during Play Cards, after traits are revealed, to feed one of your Avian species, then draw a card. A Carnivore attacks; a Non-Carnivore takes 2 plant food from the Watering Hole, the Cliff or the bank.", "confidence": "exact (the bank part reasoned from card text crop)"},
+        {"trait": "Seed Dispersal", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "event", "effect": "Discard from hand during Play Cards, after traits are revealed: add plant food to the Watering Hole equal to the number of Avian species in play, then draw a card.", "confidence": "exact"}
+      ],
+      "non_deck_cards": [
+        {"name": "Flight", "count": 12, "kind": "species trait (cardboard, starts on every new Avian species)", "effect": "Only a Carnivore with Flight can attack this species. Non-Carnivore may feed from the Cliff. A Carnivore with Flight may discard a card to negate Warning Call, Symbiosis or Climbing on its next attack.", "scores": 1, "food": null, "confidence": "exact, 2 sources (mod card image + official rulebook picture): text matches and the card has NO food number"}
+      ],
+      "boards": ["12 Avian species boards (body size track max 3)", "Cliff board (second food source, Avians only)"],
+      "rules": [
+        "Shuffle the 34 new traits + 14 events into the base deck. Remove 40 cards from the deck and set them aside; when the deck runs out, use these 40 cards for the final round INSTEAD of shuffling the discard pile. (exact, 2 sources: official 2015 rulebook Set-Up step 3 + End of Game, and ultraboardgames summary)",
+        "Brood Parasite's population gain triggers Cooperation, Nesting and Foraging; Brood Parasite on a Land species still scores 1 point (official rulebook reference section).",
+        "Nesting: a Land species takes 1 plant food from the Watering Hole or the bank per population gained (triggers Cooperation and Foraging); an Avian takes 2 meat from the bank (triggers Cooperation, not Scavenger). If an Avian's body size rises after a population gain, move food from population slots to upkeep slots (official rulebook).",
+        "Dive-Bomb / Seed Dispersal: if the card drawn is another event, it may also be played immediately (official rulebook).",
+        "New Avian species costs 2 cards discarded (a Land species costs 1). Starts at population 1, body size 1, with a Flight card in one of its 3 trait slots.",
+        "Avian max body size 3.",
+        "Avian upkeep: at the start of its feeding, an Avian must first eat food equal to its body size; that upkeep food is returned to the bank, not scored. Then it feeds population normally.",
+        "Flight occupies a trait slot, scores 1 point, can be negated by Intelligence. If Flight is replaced/discarded the species becomes a Land species (flip the board). A Land species can never become Avian.",
+        "Cliff: when food cards are revealed, add plant food to the Cliff equal to the number of players. Only Avian non-Carnivores may take from it; a species may not take from both Cliff and Watering Hole in the same feeding turn. Cooperation/Foraging still trigger.",
+        "Event cards are discarded from hand for an immediate effect; they are never played as traits.",
+        "Simultaneous triggers resolve in turn order starting with the first player."
+      ],
+      "combines_with": "Base. Promo Pack II/I traits fine. Do NOT combine with Climate (designers' guidance) or with the Plant micro-expansion (stated incompatible).",
+      "sources": [
+        "https://www.ultraboardgames.com/evolution/flight.php",
+        "https://rulespal.com/evolution-flight/rulebook",
+        "https://northstargames.com/products/make-your-own-copy-of-evolution-flight",
+        "Steam Workshop mod 937109867 sheet 664 indices 9-56, sheets 671/672",
+        "Official Flight rulebook PDF (2015) embedded in TTS mod 2041385428: https://steamusercontent-a.akamaihd.net/ugc/1029576743442596773/19637A42B84D25D110ED0D83240B65F4EE0B8A45/"
+      ],
+      "missing": ["An independent second scan of all 48 deck cards (tried: 6 TTS mods = same image; mod 896622326's separate Dropbox sheet is dead (403/HTML); North Star print-and-play page returns 429; web search found no card list). Rulebook sample cards agree."]
+    },
+    "climate": {
+      "name": "Evolution: Climate (standalone) / Climate Conversion Pack",
+      "type": "standalone game (2016); the Conversion Pack turns a base Evolution into Climate",
+      "year": "2016 (Kickstarter), conversion kit same time",
+      "buildable": "yes",
+      "components": "177 trait cards (= 91 unchanged base cards + 86 conversion-kit cards), 30 climate event cards (15 cold, 15 hot), climate board + marker, 20 species boards, 6 food bags. Conversion Pack = the 86 cards + 30 events + board + marker.",
+      "deck_build": "Take the base 2nd-edition deck, REMOVE all Ambush, Burrowing, Defensive Herding and Carnivore cards, keep the other 91 (no climate icons, same food numbers), and ADD the 86 kit cards below.",
+      "cards": [
+        {"trait": "Ambush", "count": 7, "food": [-3, -2, 3, 2, 0, 1, -1], "climate": [{"S":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "Base Ambush; also ignores one defensive trait when attacking a Migratory species (Climate text).", "confidence": "exact (mods 937 + 2425 agree)"},
+        {"trait": "Burrowing", "count": 7, "food": [5, 4, 1, 2, 3, 3, 4], "climate": [{"S":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "Base Burrowing; also prevents 1 heat and 1 cold population loss.", "confidence": "exact"},
+        {"trait": "Defensive Herding", "count": 7, "food": [2, 8, 3, 4, 6, 5, 7], "climate": [{"C":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "Base Defensive Herding; also prevents 1 cold loss.", "confidence": "exact"},
+        {"trait": "Carnivore", "count": 23, "food": [3, 2, 3, 4, 2, 1, 6, 4, 4, 4, 5, 5, 6, 3, 3, 3, 2, 2, 2, 1, 1, 0, 0], "climate": [{"S":4},{"S":4},{"C":4},{"C":4},{"C":3},{"S":2},{"C":2},{"C":1},{"C":1},{"C":1},{"C":1},{"C":1},{"C":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1},{"S":1}], "effect": "Base Carnivore.", "confidence": "exact"},
+        {"trait": "Cooling Frills", "count": 7, "food": [-4, -2, 9, 7, 2, 0, 5], "climate": [{"S":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "+2 body size when this species is attacked (defence only). Prevents 3 heat loss.", "confidence": "exact (complete in mod 2425; mod 937 missing 3 faces)"},
+        {"trait": "Heavy Fur", "count": 7, "food": [10, -5, 8, 6, -1, -3, 1], "climate": [{"C":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "Prevents 4 cold loss. In the three hottest zones (Tropical, Hot, Scorching) the species suffers +1 extra heat loss.", "confidence": "exact"},
+        {"trait": "Hibernation", "count": 7, "food": [-3, 8, -1, 1, 4, 3, 6], "climate": [{"C":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "When checking hunger, may ignore up to 2 unfed population; they are not lost to starvation. With Burrowing, protected when all but 2 are fed. Prevents 1 cold loss.", "confidence": "exact"},
+        {"trait": "Migratory", "count": 7, "food": [5, 0, 4, 2, 3, 1, 2], "climate": [{"C":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "After all feeding, if the Watering Hole is empty, take up to 2 plant food from the bank. Prevents 1 heat and 1 cold loss.", "confidence": "exact"},
+        {"trait": "Mud Wallowing", "count": 7, "food": [7, 5, -2, 0, 3, 3, 2], "climate": [{"S":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "A Carnivore must discard a card from hand before each attack on this species. Prevents 1 heat loss.", "defensive": true, "confidence": "exact"},
+        {"trait": "Nocturnal", "count": 7, "food": [-1, 1, 6, 4, 2, 2, 3], "climate": [{"S":3},{"C":2},{"S":2},{"C":1},{"C":1},{"S":1},{"S":1}], "effect": "Before each of your feeding turns, this species takes a free feeding if no Carnivore in play could attack it (Intelligence counts only if its owner has enough cards; fully fed Carnivores can't attack). Prevents 1 heat loss.", "confidence": "exact"}
+      ],
+      "climate_board": {
+        "start": "Temperate",
+        "zones": [
+          {"zone": "Ice Age",   "type": "cold", "body_sizes": [1,2,3,4,5,6], "loss": 4, "leaf_2_3p": -15, "leaf_4_6p": -30},
+          {"zone": "Freezing",  "type": "cold", "body_sizes": [1,2,3,4],     "loss": 2, "leaf_2_3p": -8,  "leaf_4_6p": -16},
+          {"zone": "Cold",      "type": "cold", "body_sizes": [1,2],         "loss": 1, "leaf_2_3p": -4,  "leaf_4_6p": -8},
+          {"zone": "Cool",      "type": "none", "body_sizes": [],            "loss": 0, "leaf_2_3p": -2,  "leaf_4_6p": -4},
+          {"zone": "Temperate", "type": "none", "body_sizes": [],            "loss": 0, "leaf_2_3p": 0,   "leaf_4_6p": 0},
+          {"zone": "Warm",      "type": "none", "body_sizes": [],            "loss": 0, "leaf_2_3p": 2,   "leaf_4_6p": 4},
+          {"zone": "Tropical",  "type": "heat", "body_sizes": [5,6],         "loss": 1, "leaf_2_3p": 6,   "leaf_4_6p": 12},
+          {"zone": "Hot",       "type": "heat", "body_sizes": [3,4,5,6],     "loss": 2, "leaf_2_3p": 3,   "leaf_4_6p": 6},
+          {"zone": "Scorching", "type": "heat", "body_sizes": [1,2,3,4,5,6], "loss": 4, "leaf_2_3p": -10, "leaf_4_6p": -20}
+        ],
+        "confidence": "exact (read from board image, mod 2425 Climate Board front/back)"
+      },
+      "events": {
+        "note": "Each event card is placed under the climate zone named on it; it triggers only when the marker is in that zone. Heat Wave / Cold Snap REPLACE the zone's own effects that round with the card's sizes, loss and leaf.",
+        "setup_rule": "Setup: shuffle the 15 Cold events (bottom-left of the board) and the 15 Hot events (bottom-right) as two decks; draw the top card of each and place it face-up under the zone named on it. After an event triggers, put it at the bottom of its own deck (unless the card says otherwise, e.g. Glacial Thaw) and draw a replacement from the same deck; the new card can't trigger until next round. There are always 2 face-up events (1 cold, 1 hot) and only 1 event can trigger per round. (exact, 1 source: official Climate rulebook pp. 4 and 8)",
+        "count": "30 cards, each listed individually below (15 cold + 15 hot). Card counts by type: Cold deck = Meteorite 1, Volcanic Eruption 3, Glacial Thaw 2, Heat Wave 5, Cold Snap 4. Hot deck = Meteorite 1, Volcanic Eruption 2, Desertification 2, Wildfire 3, Heat Wave 4, Cold Snap 3.",
+        "cold_deck": [
+          {"zone": "Ice Age",  "event": "Meteorite"},
+          {"zone": "Freezing", "event": "Volcanic Eruption", "move_to": "Ice Age"},
+          {"zone": "Cool",     "event": "Volcanic Eruption", "move_to": "Cold"},
+          {"zone": "Freezing", "event": "Heat Wave", "body_sizes": [2,3,4,5,6], "heat_loss": 1, "leaf": 10},
+          {"zone": "Ice Age",  "event": "Heat Wave", "body_sizes": [4,5,6], "heat_loss": 2, "leaf": 10},
+          {"zone": "Cool",     "event": "Heat Wave", "body_sizes": [5,6], "heat_loss": 1, "leaf": 8},
+          {"zone": "Cold",     "event": "Heat Wave", "body_sizes": [3,4,5,6], "heat_loss": 2, "leaf": 5},
+          {"zone": "Cold",     "event": "Heat Wave", "body_sizes": [3,4,5,6], "heat_loss": 1, "leaf": 10},
+          {"zone": "Freezing", "event": "Cold Snap", "body_sizes": [1,2,3,4,5,6], "cold_loss": 5, "leaf": -25},
+          {"zone": "Cool",     "event": "Cold Snap", "body_sizes": [1], "cold_loss": 2, "leaf": -5},
+          {"zone": "Cold",     "event": "Cold Snap", "body_sizes": [1,2,3,4,5], "cold_loss": 2, "leaf": -10},
+          {"zone": "Cold",     "event": "Glacial Thaw"},
+          {"zone": "Cold",     "event": "Cold Snap", "body_sizes": [1,2,3], "cold_loss": 1, "leaf": -8},
+          {"zone": "Cold",     "event": "Volcanic Eruption", "move_to": "Freezing"},
+          {"zone": "Freezing", "event": "Glacial Thaw"}
+        ],
+        "hot_deck": [
+          {"zone": "Scorching", "event": "Meteorite"},
+          {"zone": "Tropical",  "event": "Volcanic Eruption", "move_to": "Cold"},
+          {"zone": "Scorching", "event": "Volcanic Eruption", "move_to": "Cold"},
+          {"zone": "Warm",      "event": "Heat Wave", "body_sizes": [2,3,4,5,6], "heat_loss": 1, "leaf": 10},
+          {"zone": "Tropical",  "event": "Heat Wave", "body_sizes": [1,2,3,4,5,6], "heat_loss": 2, "leaf": -5},
+          {"zone": "Hot",       "event": "Heat Wave", "body_sizes": [2,3,4,5,6], "heat_loss": 3, "leaf": -5},
+          {"zone": "Tropical",  "event": "Desertification"},
+          {"zone": "Hot",       "event": "Desertification"},
+          {"zone": "Tropical",  "event": "Heat Wave", "body_sizes": [2,3,4,5,6], "heat_loss": 2, "leaf": 0},
+          {"zone": "Warm",      "event": "Wildfire"},
+          {"zone": "Tropical",  "event": "Wildfire"},
+          {"zone": "Hot",       "event": "Wildfire"},
+          {"zone": "Warm",      "event": "Cold Snap", "body_sizes": [], "cold_loss": 0, "leaf": -3},
+          {"zone": "Tropical",  "event": "Cold Snap", "body_sizes": [1], "cold_loss": 2, "leaf": -5},
+          {"zone": "Hot",       "event": "Cold Snap", "body_sizes": [1,2], "cold_loss": 1, "leaf": -4}
+        ],
+        "effects": {
+          "Meteorite": "From now until game end, no positive plant food is added (negative totals still remove food).",
+          "Volcanic Eruption": "At the end of Feeding, move the marker to the named zone.",
+          "Glacial Thaw": "Place the card on the Watering Hole; next round it adds 3 suns to the icon count.",
+          "Desertification": "No positive plant food this round; every species with body size > 1 loses 1 body size.",
+          "Wildfire": "Every species without Burrowing loses 1 population (not climate loss, so climate traits don't prevent it). This round's plant food is set aside and added before the next Deal.",
+          "Heat Wave / Cold Snap": "Replace the current zone's effect this round with the card's body sizes, loss and leaf value."
+        },
+        "confidence": "exact, 2 sources: all 30 cards (zone, name, body sizes, icons, leaf, target zone) agree between mod 937 sheets 669/670 and the separately made mod 2425085506 sheets 1/3 (5x3 grid, different file). Effect texts also match the official Climate rulebook reference section. Card wording: Meteorite 'Don't add Food to the Watering Hole this round... and for the rest of the game!' (rulebook: negative totals still remove food); Wildfire '-1 Population for species without Burrowing. Don't add Food to the Watering Hole until after the feeding phase is over.'"
+      },
+      "rules": [
+        "Phases: Deal, Select Food, Play Cards, Modify Environment, Feeding.",
+        "Deal 4 cards + 1 per species (base is 3 + 1).",
+        "Max 4 traits per species (3 in a 2-player game).",
+        "Deck size by players: 2p remove half the deck; 3p remove 60 cards; 4p remove 30; 5-6p remove none. Removed cards become the new deck when the deck runs out (5-6p: shuffle the discards instead). The game ends as in base when the deck runs out the second time / final round.",
+        "After Play Cards, a player may put any number of hand cards on the bottom of the deck and draw that many.",
+        "Modify Environment order: (1) traits that trigger 'before food cards are revealed' (leaf-icon traits such as Long Neck, Fertile) trigger; (2) reveal food cards; count suns vs snowflakes on revealed food cards; marker moves 1 zone toward the larger side (tie: stays); (3) trigger the event at the marker's zone, if any; (4) climate population loss, all species at once, protective traits stack; (5) plant food = sum of food numbers + zone leaf value (negative removes food from the Watering Hole); (6) replace the triggered event.",
+        "Climate loss: a species whose body size is listed for the zone loses that many population, minus its heat/cold prevention.",
+        "Variant: play without events. Quick Play recommended at 6 players.",
+        "Scoring and ties as base."
+      ],
+      "combines_with": "Base cards (via the conversion pack). Promo traits allowed but don't reduce the number of climate-icon cards. Plant micro-expansion has a Climate mode. Not designed to combine with Flight.",
+      "sources": [
+        "https://cdn.shopify.com/s/files/1/0283/4324/files/Evolution-Climate-Rules-web.pdf",
+        "Steam Workshop mod 937109867 sheets 661/662/669/670",
+        "Steam Workshop mod 2425085506 sheets 4/4959, climate board image"
+      ],
+      "missing": []
+    },
+    "promo_pack_1": {
+      "name": "Promo Pack I",
+      "year": "2014/2015 (Kickstarter / BGG store)",
+      "buildable": "yes",
+      "components": "7 Unstable DNA trait cards + 6 alternate-art species boards",
+      "cards": [
+        {"trait": "Unstable DNA", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "When food cards are revealed, if there was food left on the Watering Hole from the previous round, gain one new species (board).", "confidence": "exact, 1 source (one scan reused by every TTS mod, sheet 663:35-41, clearly legible); rulespal lists one copy at 2, consistent"}
+      ],
+      "sources": ["Kallax listing (Promo Pack I contents)", "https://rulespal.com/evolution-promo-pack-iv/rulebook", "mod 937109867 sheet 663"],
+      "missing": ["Second source for per-copy food numbers"]
+    },
+    "promo_pack_2": {
+      "name": "Promo Pack II",
+      "year": "2015 (Flight Kickstarter stretch goals)",
+      "buildable": "partial",
+      "components": "7 cards each of Last Stand, Quills, Pounce, Sharp Teeth, Invasive Species, Pest, Rapid Mutation",
+      "cards": [
+        {"trait": "Last Stand", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "event", "effect": "Play when a Carnivore attacks your species: the attacking Carnivore loses population instead (attack fails), and you draw a card.", "confidence": "exact, 1 source (one scan, legible); rulespal shows one copy at -1, consistent"},
+        {"trait": "Pest", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "When this species becomes fully fed, discard 3 plant food from the Watering Hole.", "confidence": "exact, 1 source: the card scan clearly shows -1,0,1,2,3,4,5 (re-checked 663:7-13). Rulespal's single '-4' conflicts; rulespal says its text comes from low-res scans, so -4 is probably a misread of -1 (reasoned). Use -1..5."},
+        {"trait": "Pounce", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "event", "effect": "During Play Cards after reveal, play on your non-Avian Carnivore: it attacks immediately, ignoring one defensive trait; draw a card.", "confidence": "exact, 1 source (one scan); rulespal one copy at -1, consistent"},
+        {"trait": "Quills", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "defensive": true, "effect": "A Carnivore that attacks this species cannot attack again this Feeding phase.", "confidence": "exact, 1 source (one scan); rulespal one copy at -1, consistent"},
+        {"trait": "Sharp Teeth", "count": 7, "food": [-1, 0, 1, 2, 3, 4, 5], "kind": "trait", "effect": "On your feeding turn, discard a card: Carnivore may attack an equal or larger body size on its next attack; Non-Carnivore takes 1 plant food from the bank.", "confidence": "exact, 1 source (one scan); rulespal copies at 1 and -1, consistent"},
+        {"trait": "Invasive Species", "count": 7, "food": null, "kind": "event", "effect": "During Play Cards after reveal, play on a Non-Carnivore: until the end of the round, it gains 1 population each time another species is attacked.", "confidence": "missing (per-copy): the only scan shows the same -1 face on all 7 copies (one image repeated); rulespal also shows -1. Build default: -1..5 like every other 7-card promo (reasoned, flag it)", "default_food": [-1, 0, 1, 2, 3, 4, 5]},
+        {"trait": "Rapid Mutation", "count": 7, "food": null, "kind": "trait", "effect": "When traits are revealed, draw 3 cards; discard this card and replace it with a card from your hand, then discard 2 more cards from hand.", "confidence": "effect: exact, 1 source (rulespal Promo Pack IV page). Food: missing (rulespal shows one copy at -1; no TTS mod includes the card). Build default: -1..5 (reasoned, flag it)", "default_food": [-1, 0, 1, 2, 3, 4, 5]}
+      ],
+      "usage_rules": [
+        "Swap each promo trait (7 cards) in for a base trait of the same card color. Never remove Carnivores.",
+        "Rapid Mutation shrinks the deck: add 2 extra traits instead of removing one.",
+        "Remove Fertile when using Invasive Species.",
+        "Pounce and Last Stand go in as a pair, removing only 1 trait.",
+        "Warning Call/Ambush and Camouflage/Good Eyesight are removed or added as pairs.",
+        "In Climate, don't reduce the number of climate-icon cards."
+      ],
+      "sources": ["https://boardmatch.app/en/game/181592", "https://rulespal.com/evolution-promo-pack-ii/rulebook", "https://rulespal.com/evolution-promo-pack-iv/rulebook", "https://cdn.shopify.com/s/files/1/0283/4324/files/promo_pack_iii_rules_pdf.pdf (usage guide)", "mod 937109867 sheets 663 and 654:45-51"],
+      "missing": ["Per-copy food numbers of Invasive Species and Rapid Mutation (tried: 7 TTS mods = one scan with Invasive repeated and no Rapid Mutation; rulespal PP II and PP IV pages show one copy each; web search found nothing)"]
+    },
+    "promo_pack_3": {
+      "name": "Promo Pack III",
+      "year": "2016 (Climate Kickstarter)",
+      "buildable": "partial (scenario cards and Plant rules yes; trait food values no)",
+      "components": "7 each of Claws, Coprophagia, Insectivore, Mimicry, Timid, Trampling; 6 Plant species boards; 9 scenario cards + 1 instruction card",
+      "cards": [
+        {"trait": "Claws", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "effect": "+2 body size when attacking or being attacked. Before reveal, may discard a card to gain Climbing until end of round.", "confidence": "partial"},
+        {"trait": "Coprophagia", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "effect": "Instead of feeding from the Watering Hole, take food from your own food bag.", "confidence": "partial"},
+        {"trait": "Insectivore", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "effect": "Before each of your feeding turns, take 1 meat food from the bank if the Watering Hole has food.", "confidence": "partial"},
+        {"trait": "Mimicry", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "effect": "Before reveal, choose a trait on another species; Mimicry copies it until end of round, then Mimicry is discarded.", "confidence": "partial"},
+        {"trait": "Timid", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "defensive": true, "effect": "Cannot be attacked by Carnivores. May not feed from the Watering Hole until all your non-Timid species are fed.", "confidence": "partial"},
+        {"trait": "Trampling", "count": 7, "food": null, "sample_food": 1, "kind": "trait", "effect": "Each time it takes food from the Watering Hole, discard 2 more food from the Watering Hole.", "confidence": "partial"}
+      ],
+      "scenarios": [
+        {"name": "Cretaceous Period", "effect": "No trait limit per species."},
+        {"name": "Darwinian Selection", "effect": "Players may never look at their hand."},
+        {"name": "Great Permian Extinction", "effect": "Max 1 trait per species."},
+        {"name": "Land of Plenty", "effect": "Start the game with 10 cards."},
+        {"name": "Plant Life Explosion", "effect": "Double the leftover Watering Hole food at the end of each round."},
+        {"name": "Runaway Warming", "effect": "Climate only: add suns equal to the number of players at each reveal."},
+        {"name": "Snowball Earth", "effect": "Climate only: add snowflakes equal to the number of players at each reveal."},
+        {"name": "Teeming Hordes", "effect": "Species start at population 2."},
+        {"name": "Radioactive Atmosphere", "effect": "Draw 2 cards per species instead of 1.", "confidence": "exact, 1 source (rulespal Promo Pack III page; not in the TTS Variant Deck, which has only 8 names)"}
+      ],
+      "plant_micro_expansion": [
+        "No Watering Hole. Each player has a Plant board starting at population 1.",
+        "Instead of placing a food card, each Plant gains +1 population. Discarding a card adds +2 to a Plant's population.",
+        "Each Plant is filled with plant food up to its population (rulebook example: population 4 -> 5 food; treat as unverified).",
+        "Non-Carnivores feed from any Plant. The Plant's owner may first make a free counter-attack with a Carnivore; if it succeeds the feeder gets nothing.",
+        "Food is removed from the highest-population Plant first. Fertile triggers at end of Feeding. Leftover plant food is scored by the owner.",
+        "Not compatible with Flight. With Climate: no events, food-card numbers ignored, Plants filled by the climate zone."
+      ],
+      "sources": ["https://nemestats.com/GameDefinition/Details/123959", "https://boardmatch.app/es/game/206072", "https://cdn.shopify.com/s/files/1/0283/4324/files/promo_pack_iii_rules_pdf.pdf", "mod 937109867 sheet 653 (Variant Deck)"],
+      "food_confidence": "missing for all 6 traits: the only scan (mod 937 sheets 659/654) shows the same face 7 times for each (all '1'); rulespal PP III gives no numbers; no other TTS mod has these cards. Build default: -1..5 per trait (reasoned, flag it). The other 8 scenario cards: exact, 2 sources (mod 937 sheet 653 + rulespal).",
+      "missing": ["Per-copy food numbers for all six traits", "Exact Plant fill formula"]
+    },
+    "single_promos": {
+      "name": "Single promo cards",
+      "buildable": "partial",
+      "cards": [
+        {"trait": "Gigantism", "count": 1, "food": [0], "climate": [{"C":2}], "effect": "At the end of Feeding, +1 body size per 3 food eaten this round.", "source": "https://boardmatch.app/de/game/207293", "confidence": "one card only"},
+        {"trait": "Hibernation (promo)", "count": 1, "food": [8], "climate": [{"C":2}], "effect": "Same as Climate Hibernation.", "confidence": "exact"},
+        {"trait": "Extra Sensory Perception", "count": 1, "food": [2], "climate": [{"C":1}], "effect": "Look at another player's face-down cards on one species; if you do, draw a card.", "confidence": "one card only (Man vs Meeple 2017)"},
+        {"trait": "Night Prowler", "count": 1, "food": [-1], "climate": [{"C":3}], "effect": "Prevent 1 heat loss; once per Feeding, negate one defensive trait when attacking.", "confidence": "one card only"}
+      ],
+      "digital_only": {"Biodiversity": ["Venom", "Gigantism", "Timid", "Insectivore", "Trampling"], "Alone and Unafraid": ["Apex Predator", "Quills", "Anti-Social", "Bold", "Pest"], "Arms Race": "unknown"},
+      "missing": ["Full 7-copy sets for these, if any exist"]
+    },
+    "the_beginning": {
+      "name": "Evolution: The Beginning",
+      "type": "separate standalone family game (simplified), not an expansion",
+      "year": "2018",
+      "buildable": "partial (rules complete; card counts unknown)",
+      "components": "88 cards, 234 food tokens, 1 Watering Hole, 5 food bags. Any card can be a species/population (face-down) or a trait (face-up). No food numbers on cards.",
+      "traits": ["Burrowing", "Flight", "Nocturnal", "Speed", "Defensive Horns", "Carnivore", "Long Neck", "Scavenger", "Fat Tissue", "Fertile"],
+      "rules": [
+        "Players take turns (not simultaneous). Turn: Gather, Adapt, Eat, Score.",
+        "Gather: put 2 food on the Watering Hole, take a deck card face-down as a new species (pop 1), draw 3.",
+        "Adapt: any number of times: new species (card face-down), +1 population (card face-down on a species), add trait (face-up, max 3, no duplicates), save cards; may discard traits.",
+        "Eat: each population eats 1; non-Carnivores must eat from the Watering Hole as much as they can. Carnivores attack a species whose defensive traits (Burrowing/Flight/Nocturnal/Speed) they all share; remove 1 population; Carnivore gets 2 food from the supply; every Scavenger gets 1. Carnivores must keep attacking until fed or no targets (may have to attack own species).",
+        "Defensive Horns: attacker loses 1 population before getting food.",
+        "Unfed population starves at end of turn. Extinct species: discard traits, draw that many cards.",
+        "End: when deck runs out, shuffle discards, play until everyone has had equal turns. Score 1 per food, per card on the table, per card in hand."
+      ],
+      "sources": ["https://cdn.shopify.com/s/files/1/0283/4324/files/Evolution-The-Beginning-Rules-Web.pdf"],
+      "missing": ["How many of each of the 10 traits are in the 88 cards"]
+    },
+    "random_mutations": {
+      "name": "Evolution: Random Mutations",
+      "type": "different game: Rightgames (Russia), 2013/2014, remake of 'Evolution: The Origin of Species' by Knorre/Machin. Not a North Star product, not compatible.",
+      "buildable": "no",
+      "sources": ["https://en.wikipedia.org/wiki/Evolution:_Random_Mutations"]
+    },
+    "new_world": {
+      "name": "Evolution: New World",
+      "type": "different game: Rightgames RBG (Knorre/Machin), 2023, 2-4 players; Area cards generate food, shelters; scored on surviving species/traits. Not North Star, not compatible.",
+      "buildable": "no",
+      "sources": ["https://www.meeplemountain.com/reviews/evolution-new-world/", "https://www.boardgames.ca/evolution-new-world.html"]
+    },
+    "oceans": {
+      "name": "Oceans",
+      "type": "separate standalone North Star game in the Evolution series (2020), 2-4 players (5-6 via expansion). 120 Surface cards + 89 unique Deep cards, Reef. Not combinable with Evolution.",
+      "buildable": "no (a separate game; would be a new project)",
+      "sources": ["https://en.wikipedia.org/wiki/Oceans_(board_game)", "https://www.northstargames.com/products/oceans"]
+    },
+    "variations": {
+      "name": "Evolution: Variations",
+      "type": "not found as a product after searching BGG-derived sites, North Star, rulespal and TTS. Closest match: the Promo Pack III scenario ('variant') cards and the Climate no-events variant.",
+      "buildable": "n/a"
+    },
+    "not_official": {
+      "Aquatic Deck": "Fan-made deck in mod 937109867 (Pool, Amphibious, Flooding/Dehydration). Do not treat as official."
+    }
+  }
+}

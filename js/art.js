@@ -25,9 +25,10 @@
     'Defensive Herding': '<g class="f"><circle cx="24" cy="10" r="4"/><circle cx="36" cy="18" r="4"/><circle cx="36" cy="32" r="4"/><circle cx="24" cy="40" r="4"/><circle cx="12" cy="32" r="4"/><circle cx="12" cy="18" r="4"/></g><circle cx="24" cy="25" r="5"/>',
     'Hard Shell': '<path d="M6 32c0-14 36-14 36 0z"/><path d="M14 32l4-10h12l4 10M18 22l6-6 6 6M24 16v-1"/><path d="M4 32h40"/>',
     Horns: '<path d="M14 30c-8-4-10-14-6-22c2 8 6 12 12 14"/><path d="M34 30c8-4 10-14 6-22c-2 8-6 12-12 14"/><path d="M16 26h16v8c0 6-4 9-8 9s-8-3-8-9z"/>',
-    Symbiosis: '<circle cx="18" cy="24" r="10"/><circle cx="30" cy="24" r="10"/><path d="M24 16v16"/>',
-    'Warning Call': '<path d="M8 20h6l8-7v22l-8-7H8z" class="f"/><path d="M28 18c3 3 3 9 0 12M33 14c6 6 6 14 0 20M38 10c8 8 8 20 0 28"/>',
-    Cooperation: '<path d="M6 26h14l4-4 4 4h14"/><path d="M12 18l-6 8 6 8M36 18l6 8-6 8"/><circle cx="24" cy="12" r="3" class="f"/><circle cx="24" cy="38" r="3" class="f"/>',
+    // direction matters: Symbiosis and Cooperation look only to the RIGHT (arrow →); Warning Call guards BOTH sides
+    Symbiosis: '<circle cx="14" cy="20" r="7"/><circle cx="32" cy="18" r="11"/><path d="M6 39h34M34 33l6 6-6 6"/>',
+    'Warning Call': '<circle cx="24" cy="24" r="5" class="f"/><path d="M16 17c-4 4-4 10 0 14M10 12c-7 7-7 17 0 24M32 17c4 4 4 10 0 14M38 12c7 7 7 17 0 24"/>',
+    Cooperation: '<circle cx="12" cy="18" r="6" class="f"/><circle cx="36" cy="18" r="6"/><path d="M6 37h34M34 31l6 6-6 6"/>',
     'Fat Tissue': '<path d="M24 6c8 10 12 16 12 23a12 12 0 0 1-24 0c0-7 4-13 12-23z"/><path d="M18 30a6 6 0 0 0 6 6"/>',
     Fertile: '<ellipse cx="22" cy="27" rx="11" ry="14"/><path d="M38 8v12M32 14h12"/>',
     Foraging: '<path d="M10 38C10 20 22 10 38 10c0 16-10 28-28 28z"/><path d="M10 38L30 18"/><path d="M18 30h6M22 26v-6"/>',
