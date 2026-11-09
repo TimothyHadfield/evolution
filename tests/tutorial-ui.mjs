@@ -114,7 +114,7 @@ try {
   const counted = await page.evaluate(() => { window.__evo.store.game.moved = true; return window.Profile.stats().games; });
   await page.evaluate(() => window.__evo.showTab('play', true));
   ok(counted === 0, 'guided game not counted in My stats');
-  // ---- Undo vs the computer: a normal game, food card, Undo puts it back
+  // ---- Undo vs the computer: a normal (fluid) game, a food card at the watering hole + Done, Undo puts it back
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('evolution:v1')); s.game = null; localStorage.setItem('evolution:v1', JSON.stringify(s)); });
   await page.goto(BASE + '&r=1');
   await page.waitForSelector('[data-go="start"]');
@@ -124,11 +124,12 @@ try {
   const h0 = await page.evaluate(() => window.__evo.store.game.state.players[0].hand.slice());
   ok(await page.$('.status [data-go="undo"][disabled]') !== null, 'Undo shown, disabled before any move');
   await page.click('#hand [data-card="' + h0[0] + '"]'); await wait(200);
-  await page.click('.acts [data-act="food"]'); await wait(500);
+  await page.click('.hole .wh'); await wait(300);
+  await page.click('.acts [data-act="done"]'); await wait(500);
   ok(await page.$('.status [data-go="undo"]:not([disabled])') !== null, 'Undo enabled after a move');
   await page.click('.status [data-go="undo"]'); await wait(400);
   const after = await page.evaluate(() => ({ hand: window.__evo.store.game.state.players[0].hand.slice(), phase: window.__evo.store.game.state.phase, helped: window.__evo.store.game.helped }));
-  ok(after.phase === 'food' && JSON.stringify(after.hand) === JSON.stringify(h0) && after.helped === true, 'Undo: back to the food card, game marked as helped', JSON.stringify(after));
+  ok(after.phase === 'play' && JSON.stringify(after.hand) === JSON.stringify(h0) && after.helped === true, 'Undo: back to my play turn with the food card in hand, game marked as helped', JSON.stringify(after));
   await shot('undo');
   // ---- rules sheet from the setup screen: tabs wrap, no sideways scroll
   await page.evaluate(() => window.__evo.openRules());

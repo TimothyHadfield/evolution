@@ -8,6 +8,10 @@
          -> 4 reveal (traits flip; Fertile, Fat Tissue, Long Neck; food cards add plant food)
          -> 5 feeding (clockwise, one feeding per turn, you must feed if a hungry species can eat)
          -> end (population drops to food eaten, food behind the screen, first player passes left)
+   Fluid play (state.fluid, every new game unless newGame({fluid:false})): steps 2 and 3 are one step.
+   Each player places their food card during their own play turn, in the same action as their card
+   plays ({t:'play', moves, food}); Tim's chosen variant (docs/rules-check.md). Saves from before it
+   have no state.fluid and keep the two steps.
    Computer seats are answered inside the engine (players[i].bot), so an online room never waits on
    a network move for them. state.stepBots leaves computer FEEDING turns to the screen (so you can
    watch them one at a time on this device). */
@@ -55,12 +59,13 @@
   const cur = s => s.hist[s.hist.length - 1];
 
   // ------------------------------------------------------------------ setup
-  // o = {seed, players:[{name, bot}], quick (Quick Play variant), stepBots, trace}
+  // o = {seed, players:[{name, bot}], quick (Quick Play variant), fluid (food card placed in the play turn;
+  //      default on), stepBots, trace}
   function newGame(o) {
     o = o || {};
     const n = Math.max(2, Math.min(6, (o.players || []).length || 2));
     const s = {
-      v: 1, seed: (o.seed >>> 0) || 1, round: 0, phase: 'deal', first: 0, turn: -1, playTurn: -1, passes: 0,
+      v: 1, seed: (o.seed >>> 0) || 1, round: 0, phase: 'deal', first: 0, turn: -1, playTurn: -1, passes: 0, fluid: o.fluid !== false,
       deck: [], discard: [], hole: 0, nextId: 1, log: [], lastRound: false, lastNext: false, over: false, result: null,
       // 2 players: 40 cards out, 2 traits per species. 6 players: Quick Play is required.
       quick: n === 6 ? true : !!o.quick, maxTraits: n === 2 ? 2 : 3, removed: 0,
@@ -115,7 +120,9 @@
     s.phase = 'food';
     s.turn = -1; s.playTurn = -1; s.passes = 0;
     log(s, -1, 'Round ' + s.round + (s.lastRound ? ' (last round)' : '') + '. ' + pname(s, s.first) + ' goes first.', 'sys');
-    if (s.players.every(pl => !pl.hand.length)) toPlay(s);
+    // fluid: no separate food step; each player's food card comes with their play
+    if (s.fluid) { s.phase = 'play'; s.playTurn = s.first; }
+    else if (s.players.every(pl => !pl.hand.length)) toPlay(s);
   }
 
   // ------------------------------------------------------------------ who acts now
@@ -238,6 +245,8 @@
       const made = [];
       const disc = [];
       for (const m of a.moves) playOne(s, test, m, made, disc);
+      if (s.fluid) placeFood(test, pl.hand.length > 0, a.food);
+      else if (a.food != null) throw new Error('The food cards are already placed');
       s.players[seat] = test;
       s.discard.push(...disc);
       test.done = true;
@@ -252,6 +261,19 @@
     throw new Error('Nothing to do now');
   }
 
+  // fluid play: the food card goes face down at the watering hole with the play. Anyone who began the
+  // turn holding a card must place one, and it can't be a card the same turn already played.
+  function placeFood(pl, required, card) {
+    if (card == null) {
+      if (required) throw new Error('Put a food card at the watering hole');
+      pl.foodCard = -1;
+      return;
+    }
+    const k = pl.hand.indexOf(card);
+    if (k < 0) throw new Error(required ? 'That food card is not in your hand (or was played already)' : 'You have no cards to place as food');
+    pl.hand.splice(k, 1);
+    pl.foodCard = card;
+  }
   function toPlay(s) {
     for (const pl of s.players) if (pl.foodCard === null) pl.foodCard = -1;
     s.phase = 'play';
@@ -592,7 +614,7 @@
     const hidingFood = s.phase === 'food' || s.phase === 'play' || s.phase === 'leaf';
     const last = cur(s);
     const v = {
-      round: s.round, phase: s.phase, first: s.first, turn: s.turn, playTurn: s.playTurn, hole: s.hole,
+      round: s.round, phase: s.phase, fluid: !!s.fluid, first: s.first, turn: s.turn, playTurn: s.playTurn, hole: s.hole,
       deckSize: s.deck.length, discardSize: s.discard.length, quick: s.quick, maxTraits: s.maxTraits, removed: s.removed,
       lastRound: s.lastRound, lastNext: s.lastNext, over: s.over, result: s.over ? s.result : null, toAct: toAct(s), log: s.log.slice(-80), leaf: s.phase === 'leaf' && s.leaf ? clone(s.leaf) : null,
       canPass: s.phase === 'feed' && s.turn === seat ? canPass(s, seat) : false,

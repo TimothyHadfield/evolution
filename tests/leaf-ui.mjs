@@ -21,7 +21,7 @@ const pw = (await import(pathToFileURL(pwPath).href)).default;
 // You + 2 Hard computers, Quick Play. Your one species: body 4, population 1, 4 food stored on Fat Tissue, plus Fertile.
 // Fertile first -> population 2, 2 food on the board, 2 stored; Fat Tissue first -> population 2, 1 food, 3 stored.
 function leafStore() {
-  let s = E.newGame({ seed: 11, quick: true, stepBots: true, players: [{ name: 'You' }, { name: 'Computer 1', bot: 'hard' }, { name: 'Computer 2', bot: 'hard' }] });
+  let s = E.newGame({ seed: 11, quick: true, fluid: false, stepBots: true, players: [{ name: 'You' }, { name: 'Computer 1', bot: 'hard' }, { name: 'Computer 2', bot: 'hard' }] });
   s = E.apply(s, 0, { t: 'food', card: s.players[0].hand[0] });
   const pickT = t => C.DECK.find(c => c.trait === t && s.players.every(pl => pl.hand.indexOf(c.id) < 0) && s.deck.indexOf(c.id) >= 0).id;
   const f = pickT('Fertile'), ft = pickT('Fat Tissue');

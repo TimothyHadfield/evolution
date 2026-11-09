@@ -65,7 +65,7 @@
     if (undoMode()) this.game.undo = { state: before, notes: this.game.notes.length };
     this.game.moved = true;
     this.game.state = next;
-    if (note) { this.game.notes.push(note); if (this.game.notes.length > 300) this.game.notes.shift(); }
+    for (const n of [].concat(note || [])) { this.game.notes.push(n); if (this.game.notes.length > 300) this.game.notes.shift(); }
     save();
     return true;
   };
@@ -111,12 +111,13 @@
         const vMine = B.rate(s, ME, action), vBest = B.rate(s, ME, best);
         return { r: s.round, k: 'feed', mine: describe(s, action), best: describe(s, best), lost: Math.max(0, vBest - vMine) };
       }
-      if (s.phase === 'food' && action.t === 'food') {
-        const best = B.decide(s, ME, 'hard');
-        return { r: s.round, k: 'food', mine: 'Food card: ' + T(action.card) + ' (' + fmtFood(DECK[action.card].food) + ')', best: 'Food card: ' + T(best.card) + ' (' + fmtFood(DECK[best.card].food) + ')', same: best.card === action.card || DECK[best.card].trait === DECK[action.card].trait && DECK[best.card].food === DECK[action.card].food };
-      }
+      const foodNote = (mine, best) => ({ r: s.round, k: 'food', mine: 'Food card: ' + T(mine) + ' (' + fmtFood(DECK[mine].food) + ')', best: 'Food card: ' + T(best) + ' (' + fmtFood(DECK[best].food) + ')', same: best === mine || DECK[best].trait === DECK[mine].trait && DECK[best].food === DECK[mine].food });
+      if (s.phase === 'food' && action.t === 'food') return foodNote(action.card, B.decide(s, ME, 'hard').card);
       if (s.phase === 'play' && action.t === 'play') {
-        return { r: s.round, k: 'play', mine: action.moves.length ? action.moves.map(m => describeMove(s, m)).join(' · ') : 'Played no cards' };
+        const play = { r: s.round, k: 'play', mine: action.moves.length ? action.moves.map(m => describeMove(s, m)).join(' · ') : 'Played no cards' };
+        // fluid play: the food card came with the plays; compare it with the Hard computer's food card too
+        if (s.fluid && action.food != null) { const best = B.decide(s, ME, 'hard'); return best.food != null ? [foodNote(action.food, best.food), play] : play; }
+        return play;
       }
     } catch (e) { /* notes are extras */ }
     return null;
@@ -232,13 +233,19 @@
   }
 
   // ------------------------------------------------------------------ ui state
-  const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], feedSel: null, target: null, needCard: null, prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
-  function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.feedSel = null; ui.target = null; ui.needCard = null; }
+  // fluid play (food card placed in the play turn): food = my planned food card, foodAt = how many planned plays
+  // came before it (so Undo takes back in order), grow = a card put on the discard pile, waiting for Body / Pop / +
+  const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], food: null, foodAt: 0, grow: null, feedSel: null, target: null, needCard: null, prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
+  function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.food = null; ui.foodAt = 0; ui.grow = null; ui.feedSel = null; ui.target = null; ui.needCard = null; }
   function restoreDraft() {
     try {
       const g = store.game, d = g && g.draft;
-      if (d && Array.isArray(d.moves) && g.state.phase === 'play' && d.r === g.state.round && E.toAct(g.state).indexOf(ME) >= 0) ui.draft = d.moves.slice(0, 60);
-    } catch (e) { ui.draft = []; }
+      if (d && Array.isArray(d.moves) && g.state.phase === 'play' && d.r === g.state.round && E.toAct(g.state).indexOf(ME) >= 0) {
+        ui.draft = d.moves.slice(0, 60);
+        const hand = g.state.players[ME].hand;
+        if (g.state.fluid && d.food != null && hand.indexOf(d.food) >= 0 && !ui.draft.some(m => m.card === d.food)) { ui.food = d.food; ui.foodAt = Math.min(+d.foodAt || 0, ui.draft.length); }
+      }
+    } catch (e) { ui.draft = []; ui.food = null; }
   }
   restoreDraft();
   // the same game open in two tabs: whatever one tab saves, the other picks up (no move is ever undone)
@@ -582,6 +589,7 @@
     if (v.over) markOver(v);
     const me = v.players[ME];
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
+    const fluidMine = isFluidPlay(v, myTurn);
     const dv = draftView(v);
     const threat = store.settings.threat ? O.threatMap(v) : [];
     const dangerTo = id => threat.filter(x => x.ok && x.tid === id && x.tp !== x.cp).length;
@@ -614,7 +622,7 @@
     // --- watering hole + odds
     let oddsTxt = '';
     if (store.settings.odds && !v.over && (v.phase === 'food' || v.phase === 'play')) {
-      const myF = v.me && v.me.foodCard != null && v.me.foodCard >= 0 ? DECK[v.me.foodCard].food : ui.sel != null && v.phase === 'food' ? DECK[ui.sel].food : 0;
+      const myF = myFoodNum(v, true);
       const fc = O.holeForecast(v, myF);
       const need = O.plantDemand(dv);
       oddsTxt = '<div class="odds">Next <b>~' + fc.mean.toFixed(1) + '</b> <span class="muted">' + fc.lo + '–' + fc.hi + '</span><br>Need <b>' + needAfter(dv) + '</b></div>';
@@ -633,21 +641,28 @@
     const revEl = ui.reveal && v.phase === 'feed' && ui.reveal.round === v.round ? performance.now() - ui.reveal.t0 : Infinity;
     const revealing = revEl < Infinity && cur && cur.foodCards && cur.foodCards.some((id, k) => revEl < revAt(k));
     const fcards = v.phase === 'feed' && cur && cur.foodCards ? cur.foodCards.map((id, k) => { const down = revEl < revAt(k);
-      return cardFace(down ? -1 : id, { style: 'z-index:' + (20 - k), attr: down ? ' data-reveal="' + id + '" data-at="' + Math.round(revAt(k) - revEl) + '"' : '' }); }).join('') : placed.filter(x => x === -1).map((x, k) => cardFace(-1, { style: 'z-index:' + (20 - k) })).join('');
+      return cardFace(down ? -1 : id, { style: 'z-index:' + (20 - k), attr: down ? ' data-reveal="' + id + '" data-at="' + Math.round(revAt(k) - revEl) + '"' : '' }); }).join('') : placed.filter(x => x === -1).map((x, k) => cardFace(-1, { style: 'z-index:' + (20 - k) })).join('') +
+      // fluid play: my planned food card lies there face down too (tap it to take it back)
+      (fluidMine && ui.food != null ? cardFace(-1, { cls: 'mine-food', style: 'z-index:21', attr: ' data-myfood="1" aria-label="Your food card (tap to take it back)"' }) : '');
+    // fluid play: where the lifted card can go glows (watering hole = food card, discard pile = grow a species)
+    const holeCan = fluidMine && ui.sel != null, discCan = fluidMine && ui.sel != null;
     const hole = '<div class="hole"><div class="deckw"><div id="deck" title="Draw pile" aria-label="Draw pile: ' + v.deckSize + ' cards"></div></div>' +
-      '<div class="wh" data-go-hole="1"><div class="pondw">' + A.pond(v.hole) + '<div class="ptoks">' + pondTokens(v.hole) + '</div><div class="hnw"><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div></div>' +
+      '<div class="wh' + (holeCan ? ' can' : '') + '" data-go-hole="1"><div class="pondw">' + A.pond(v.hole) + '<div class="ptoks">' + pondTokens(v.hole) + '</div><div class="hnw"><div class="hn num">' + v.hole + '</div><div class="hl">Food</div></div></div>' +
       '<div class="fcards">' + fcards + '</div>' + oddsTxt + '</div>' +
-      '<div class="discw"><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div></div>';
+      '<div class="discw' + (discCan ? ' can' : '') + '"' + (fluidMine ? ' data-disc="1"' : '') + '><div id="discard" title="Discard pile" aria-label="Discard pile: ' + v.discardSize + ' cards"></div></div></div>';
 
     // --- my species
     const mySp = dv.species;
     const selCard = ui.sel != null && v.phase === 'play' && myTurn;
+    const growing = fluidMine && ui.grow != null; // a card on the discard pile: Body, Pop and + glow
+    const plusOn = selCard || growing;
+    const planned = fluidMine ? ui.draft.filter(m => m.t === 'trait').map(m => m.card) : null;
     const feedMine = v.phase === 'feed' && myTurn;
     const fo = feedMine ? (table.online ? E.feedOptions(rebuildFor(v), ME) : E.feedOptions(table.game.state, ME)) : [];
-    const mine = (selCard ? '<button class="newsp can" data-new="L" aria-label="New species on the left">+</button>' : '') +
-      mySp.map((sp, i) => bigSp(sp, i, v, { can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), prey: feedMine && ui.feedSel != null && fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === sp.id), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id), flip: flipped(sp) })).join('') +
-      (selCard ? '<button class="newsp can" data-new="R" aria-label="New species on the right">+</button>' : '') +
-      (!mySp.length && !selCard ? '<span class="muted small" style="margin:auto">No species. Play a card as a new species.</span>' : '') +
+    const mine = (plusOn ? '<button class="newsp can" data-new="L" aria-label="New species on the left">+</button>' : '') +
+      mySp.map((sp, i) => bigSp(sp, i, v, { planned, trk: growing, can: (selCard && canPlayOn(sp, ui.sel, ui.mode)) || (feedMine && fo.some(o => o.s === sp.id) && ui.feedSel !== sp.id) || (feedMine && ui.feedSel != null && fo.some(o => o.s === ui.feedSel && o.target === sp.id)), prey: feedMine && ui.feedSel != null && fo.some(o => o.t === 'attack' && o.s === ui.feedSel && o.target === sp.id), sel: ui.feedSel === sp.id, tgt: ui.target === sp.id, danger: dangerTo(sp.id), eats: canEat(sp.id), flip: flipped(sp) })).join('') +
+      (plusOn ? '<button class="newsp can" data-new="R" aria-label="New species on the right">+</button>' : '') +
+      (!mySp.length && !plusOn ? '<span class="muted small" style="margin:auto">No species. Play a card as a new species.</span>' : '') +
       '<div class="side-bits">' + (v.first === ME ? '<span class="fp" title="You feed first">1st</span>' : '') + (v.me && v.me.bag != null ? bagHtml(v.me.bag, 'Your food bag') : '') + '</div>';
 
     // --- hand
@@ -663,7 +678,7 @@
 
     // my planned (not yet sent) plays survive a reload
     if (isLocal()) {
-      const d = v.phase === 'play' && ui.draft.length ? { r: v.round, moves: ui.draft } : null;
+      const d = v.phase === 'play' && (ui.draft.length || ui.food != null) ? Object.assign({ r: v.round, moves: ui.draft }, ui.food != null ? { food: ui.food, foodAt: ui.foodAt } : {}) : null;
       if (JSON.stringify(d) !== JSON.stringify(store.game.draft || null)) { store.game.draft = d; save(); }
     }
     const fitKey = innerWidth + 'x' + innerHeight + ':' + v.players.length;
@@ -783,11 +798,13 @@
   }
   // the newest discards we know (food cards of earlier rounds), face up
   function discardCards(v) {
-    if (!v.discardSize) return [];
+    // fluid play: the cards I put on the pile this turn (to grow a species) lie on top, face up
+    const mine = isFluidPlay(v, v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy)) ? ui.draft.filter(m => m.t === 'species' || m.t === 'body' || m.t === 'pop').map(m => m.card).concat(ui.grow != null ? [ui.grow] : []) : [];
+    if (!v.discardSize) return mine.map(id => cardFace(id));
     const cur = v.hist && v.hist[v.hist.length - 1];
     const ids = [];
     (v.hist || []).forEach(h => { if (v.phase === 'feed' && h === cur) return; (h.foodCards || []).forEach(id => ids.push(id)); });
-    return ids.slice(-Math.min(4, v.discardSize)).map(id => cardFace(id)); // never more cards than the pile holds
+    return ids.slice(-Math.min(4, v.discardSize)).concat(mine).map(id => cardFace(id)); // never more cards than the pile holds
   }
   // plant food tokens heaped in the pond (up to 14 drawn; the number says the rest)
   function pondTokens(n) {
@@ -822,32 +839,40 @@
   function needAfter(dv) { return O.plantDemand(dv); }
 
   // the board as it will look with my planned (not yet sent) plays
+  // out.ok = the planned plays that still hold (a play the engine would refuse is left out)
   function draftView(v) {
     const me = v.players[ME];
-    const out = { hand: v.me ? v.me.hand.slice() : [], species: E.clone(me.species), players: null };
-    if (v.phase === 'play' && v.me && v.me.foodCard != null) {
-      // my food card already left my hand
-    }
-    if (v.phase === 'food' && v.me) { /* hand as is */ }
+    const out = { hand: v.me ? v.me.hand.slice() : [], species: E.clone(me.species), players: null, ok: [] };
+    // fluid play: my planned food card and a card waiting on the discard pile are out of my hand
+    if (v.phase === 'play') for (const c of [ui.food, ui.grow]) { const k = c == null ? -1 : out.hand.indexOf(c); if (k >= 0) out.hand.splice(k, 1); }
     let made = 0;
     for (const m of ui.draft) {
-      if (m.t === 'drop') { const sp = out.species.find(x => x.id === m.s); if (sp) { sp.traits = sp.traits.filter(x => x !== m.card); sp.hidden = sp.hidden.filter(x => x !== m.card); } continue; }
+      if (m.t === 'drop') { const sp = out.species.find(x => x.id === m.s); if (sp && sp.traits.concat(sp.hidden).indexOf(m.card) >= 0) { sp.traits = sp.traits.filter(x => x !== m.card); sp.hidden = sp.hidden.filter(x => x !== m.card); out.ok.push(m); } continue; }
       const k = out.hand.indexOf(m.card);
       if (k < 0) continue;
-      out.hand.splice(k, 1);
-      if (m.t === 'species') { made++; const ns = { id: -made, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [], fresh: true }; if (m.side === 'L') out.species.unshift(ns); else out.species.push(ns); continue; }
+      if (m.t === 'species') { out.hand.splice(k, 1); out.ok.push(m); made++; const ns = { id: -made, body: 1, pop: 1, food: 0, fat: 0, traits: [], hidden: [], fresh: true }; if (m.side === 'L') out.species.unshift(ns); else out.species.push(ns); continue; }
       const sp = out.species.find(x => x.id === m.s);
-      if (!sp) continue;
+      if (!sp || !canPlayOn(sp, m.card, m.t, v.maxTraits)) continue;
+      out.hand.splice(k, 1); out.ok.push(m);
       if (m.t === 'body') { sp.body++; sp.bumpB = true; } else if (m.t === 'pop') { sp.pop++; sp.bumpP = true; } else if (m.t === 'trait') { sp.hidden.push(m.card); }
     }
     out.players = v.players.map((pl, p) => (p === ME ? Object.assign({}, pl, { species: out.species }) : pl));
     return out;
   }
-  function canPlayOn(sp, card, mode) {
+  // fluid play (food card placed during my play turn) and it is my turn now
+  function isFluidPlay(v, myTurn) { return !!(v && v.fluid && v.phase === 'play' && myTurn && !v.over); }
+  // the food number of my food card: placed, planned (fluid play) or picked in the food step
+  function myFoodNum(v, picked) {
+    if (v.me && v.me.foodCard != null && v.me.foodCard >= 0) return DECK[v.me.foodCard].food;
+    if (v.phase === 'play' && ui.food != null) return DECK[ui.food].food;
+    if (picked && ui.sel != null && v.phase === 'food') return DECK[ui.sel].food;
+    return 0;
+  }
+  function canPlayOn(sp, card, mode, max) {
     if (mode === 'body') return sp.body < E.MAX;
     if (mode === 'pop') return sp.pop < E.MAX;
     const list = sp.traits.concat(sp.hidden);
-    return list.length < curMax() && !list.some(id => id >= 0 && T(id) === T(card));
+    return list.length < (max || curMax()) && !list.some(id => id >= 0 && T(id) === T(card));
   }
   function curMax() { try { return curView().maxTraits || 3; } catch (e) { return 3; } }
   // rebuild a minimal engine-like state from a view (online: for option lists on my own turn)
@@ -862,13 +887,13 @@
     for (let k = 0; k < sp.pop; k++) slots += k < sp.food ? '<i class="ftk' + (carn ? ' meat' : '') + '"></i>' : '<span class="slot"></span>';
     if (fatT) for (let k = 0; k < sp.body; k++) slots += k < sp.fat ? '<i class="ftk fat"></i>' : '<span class="slot fatslot"></span>';
     const nTr = sp.traits.length + sp.hidden.length;
-    const trs = sp.traits.map(id => traitChip(id, false, o.flip)).concat(sp.hidden.map(id => traitChip(id, true))).join('') +
+    const trs = sp.traits.map(id => traitChip(id, false, o.flip)).concat(sp.hidden.map(id => traitChip(id, true, null, !!o.planned && o.planned.indexOf(id) >= 0))).join('') +
       '<div class="tr empty"></div>'.repeat(Math.max(0, Math.min(3, v.maxTraits || 3) - nTr)); // open trait slots
     const cls = ['sp', carn ? 'carnivore' : '', o.can ? 'can' : '', o.prey && !o.tgt ? 'prey' : '', o.sel ? 'sel' : '', o.tgt ? 'sel tgt' : '', sp.food >= sp.pop && v.phase === 'feed' ? 'fed' : '', sp.fresh ? 'popin' : ''].join(' ');
     return '<div class="' + cls + '" data-sp="' + sp.id + '">' +
       (o.danger && store.settings.threat ? '<span class="flag danger" title="Carnivores that can eat it">' + o.danger + '</span>' : '') +
       (o.eats && store.settings.threat ? '<span class="flag carn" title="Species it can eat">' + o.eats + '</span>' : '') +
-      '<div class="trs">' + trs + '</div><div class="board"><div class="fr">' + slots + '</div>' + track('Body', 'b', sp.body) + track('Pop', 'p', sp.pop) + '</div></div>';
+      '<div class="trs">' + trs + '</div><div class="board"><div class="fr">' + slots + '</div>' + track('Body', 'b', sp.body, o.trk) + track('Pop', 'p', sp.pop, o.trk) + '</div></div>';
   }
   // traits of this species that were face down on the last drawn table and are face up now
   function flipped(sp) {
@@ -877,17 +902,19 @@
     return sp.traits.filter(id => a.traits.indexOf(id) < 0);
   }
   // a 1-6 track printed on the board with a wooden cube on the current space
-  function track(label, k, n) {
+  // (glow: fluid play, a card waits on the discard pile and this track can take +1)
+  function track(label, k, n, glow) {
     let cells = '';
     for (let i = 1; i <= 6; i++) cells += i === n ? '<i class="on"><b class="cube ' + k + '">' + i + '</b></i>' : '<i>' + i + '</i>';
-    return '<div class="trk" aria-label="' + label + ' ' + n + '"><span class="tl">' + label + '</span>' + cells + '</div>';
+    return '<div class="trk' + (glow && n < E.MAX ? ' can' : '') + '" data-trk="' + k + '" aria-label="' + label + ' ' + n + '"><span class="tl">' + label + '</span>' + cells + '</div>';
   }
-  // a trait card tucked above a board (only its top shows); flip = it just turned face up
-  function traitChip(id, fresh, flip) {
+  // a trait card tucked above a board (only its top shows); flip = it just turned face up;
+  // planned = my own card played this turn and not sent yet (tap it to take it back)
+  function traitChip(id, fresh, flip, planned) {
     if (id < 0) return '<div class="tr hid"><span>face down</span></div>';
     const t = T(id);
     const k = flip ? flip.indexOf(id) : -1;
-    return '<div class="tr' + (fresh ? ' new' : '') + (k >= 0 ? ' flipin' : '') + '" style="' + famStyle(t) + (k >= 0 ? ';animation-delay:' + (200 + k * 120) + 'ms' : '') + '">' + A.icon(t) + '<span>' + tName(t) + '</span></div>';
+    return '<div class="tr' + (fresh ? ' new' : '') + (k >= 0 ? ' flipin' : '') + '" style="' + famStyle(t) + (k >= 0 ? ';animation-delay:' + (200 + k * 120) + 'ms' : '') + '"' + (planned ? ' data-planned="' + id + '"' : '') + '>' + A.icon(t) + '<span>' + tName(t) + '</span></div>';
   }
   function miniSp(sp, p, v) {
     const carn = sp.traits.some(id => T(id) === 'Carnivore');
@@ -921,6 +948,17 @@
       if (ui.sel == null) return '<span class="msg"><b>Pick a food card.</b> Its number goes into the watering hole.</span>';
       const f = DECK[ui.sel].food;
       return '<span class="msg">Adds <b>' + fmtFood(f) + '</b> plant food</span><button class="btn primary" data-act="food">Use as food</button>';
+    }
+    if (v.phase === 'play' && v.fluid) {
+      // one step: cards to species, the watering hole (food card) or the discard pile (grow), any order
+      if (ui.grow != null) return '<span class="msg">Tap <b>Body</b>, <b>Pop</b> or <b>+</b> to grow.</span><button class="btn" data-act="growcancel">Cancel</button>';
+      if (ui.sel != null) return '<span class="msg">Tap a <b>species</b>, the <b>watering hole</b> or the <b>discard pile</b>.</span>';
+      const n = ui.draft.length + (ui.food != null ? 1 : 0);
+      const needFood = !!(v.me && v.me.hand.length) && ui.food == null;
+      const undo = n ? '<button class="btn" data-act="undo">Undo</button>' : '';
+      if (needFood) return undo + '<span class="msg"><b>Put a food card</b> at the watering hole.</span><button class="btn primary" data-act="done" disabled>Done</button>';
+      return (undo || '<span class="msg">' + (v.me && v.me.hand.length ? 'Tap a card to play it.' : '<b>No cards</b> to play.') + '</span>') +
+        '<button class="btn primary" data-act="done">' + (n ? 'Done (' + n + ')' : 'Done') + '</button>';
     }
     if (v.phase === 'play') {
       const n = ui.draft.length;
@@ -1044,6 +1082,7 @@
     const v = curView();
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
     if (t.id === 'over') { ui.hideOver = true; renderPlay(); return; }
+    if (isFluidPlay(v, myTurn) && !t.closest('[data-act]') && fluidClick(t, v)) return;
     if (t.closest('[data-go-hole]')) { holeSheet(v); return; }
     const actB = t.closest('[data-act]');
     if (actB) { if (Date.now() < (ui.tapLock || 0)) return; doAct(actB.dataset.act, v); return; }
@@ -1060,7 +1099,7 @@
       renderPlay(); return;
     }
     const nw = t.closest('[data-new]');
-    if (nw && ui.sel != null) {
+    if (nw && ui.sel != null && v.phase === 'play') {
       // a new species board goes down on the table
       fxFly($('#hand [data-card="' + ui.sel + '"]'), nw); sfx('place');
       ui.draft.push({ t: 'species', card: ui.sel, side: nw.dataset.new }); ui.sel = null; renderPlay(); return;
@@ -1095,6 +1134,91 @@
       speciesSheet(v, id); return;
     }
   }
+  // ---- fluid play: a lifted card goes to a species (trait), the watering hole (food card) or the discard
+  // pile (then Body, Pop or + to grow); planned cards can be taken back until Done. true = tap handled.
+  const handEl = c => $('#hand [data-card="' + c + '"]');
+  function fluidClick(t, v) {
+    const card = ui.sel != null ? ui.sel : ui.grow;
+    if (t.closest('[data-myfood]') && card == null) { takeBackFood(); return true; }
+    if (t.closest('[data-go-hole]') && card != null) { planFood(card); return true; }
+    if (t.closest('[data-disc]')) {
+      if (ui.sel != null) startGrow(ui.sel);
+      else if (ui.grow == null) playsSheet(v);
+      return true;
+    }
+    const pl = t.closest('[data-planned]');
+    if (pl && card == null) { const i = ui.draft.findIndex(m => m.t === 'trait' && m.card === +pl.dataset.planned); if (i >= 0) { takeBack(i); renderPlay(); } return true; }
+    if (t.closest('[data-card]')) { ui.grow = null; return false; } // another card: the one on the pile goes back
+    const nw = t.closest('[data-new]');
+    if (nw && card != null) { growOn({ t: 'species', card, side: nw.dataset.new }, nw); return true; }
+    const spEl = t.closest('#mine [data-sp]');
+    if (spEl && card != null) {
+      const id = +spEl.dataset.sp, trk = t.closest('[data-trk]');
+      if (trk) {
+        const kind = trk.dataset.trk === 'b' ? 'body' : 'pop';
+        const sp = draftView(v).species.find(x => x.id === id);
+        if (!sp || !canPlayOn(sp, card, kind)) { sfx('error'); if (FXL) FXL.shake(spEl); toast('Already at 6'); return true; }
+        growOn({ t: kind, card, s: id }, spEl);
+        return true;
+      }
+      if (ui.grow != null) { sfx('error'); if (FXL) FXL.shake(spEl); toast('Tap Body, Pop or +'); return true; }
+    }
+    return false; // the usual handling (a trait onto a species, a species sheet, ...)
+  }
+  function planFood(card) {
+    const from = ui.grow === card ? $('#discard .tc:last-child') : handEl(card);
+    sfx('cardSlide'); fxFly(from, $('.hole .fcards') || $('.hole'));
+    ui.food = card; ui.foodAt = ui.draft.length; ui.sel = null; if (ui.grow === card) ui.grow = null;
+    renderPlay();
+  }
+  function startGrow(card) {
+    sfx('cardSlide'); fxFly(handEl(card), $('#discard'));
+    ui.grow = card; ui.sel = null;
+    renderPlay();
+  }
+  // a card from my hand or the discard pile grows a species (body, population) or starts a new one
+  function growOn(m, el) {
+    const from = ui.grow === m.card ? $('#discard .tc:last-child') : handEl(m.card);
+    if (m.t === 'species') { sfx('place'); fxFly(from, el); }
+    else { sfx('grow', m.t === 'body' ? { pitch: 0.85 } : undefined); fxFly(from, el).then(() => { const x = $('#mine [data-sp="' + m.s + '"]'); if (x && FXL) FXL.pop(x); }); }
+    ui.draft.push(m); ui.sel = null; ui.grow = null;
+    renderPlay();
+  }
+  function takeBackFood() { if (ui.food == null) return; sfx('cardSlide', { pitch: 0.8 }); ui.food = null; ui.foodAt = 0; renderPlay(); }
+  // take back planned play i; a new species takes the plays made on it with it (and later new species
+  // move up one: the engine names them -1, -2, ... in the order they were made)
+  function takeBack(i) {
+    const m = ui.draft[i];
+    if (!m) return;
+    const gone = new Set([i]);
+    let k = 0;
+    if (m.t === 'species') {
+      k = ui.draft.slice(0, i + 1).filter(x => x.t === 'species').length;
+      ui.draft.forEach((x, j) => { if (x.t !== 'species' && x.s === -k) gone.add(j); });
+    }
+    const early = [...gone].filter(j => j < ui.foodAt).length;
+    ui.draft = ui.draft.filter((x, j) => !gone.has(j)).map(x => (k && x.t !== 'species' && typeof x.s === 'number' && x.s < -k ? Object.assign({}, x, { s: x.s + 1 }) : x));
+    // a play that only fit because of the one taken back (say, a freed trait slot) comes back too
+    const before = ui.draft.length;
+    ui.draft = draftView(curView()).ok;
+    ui.foodAt = Math.min(Math.max(0, ui.foodAt - early - (before - ui.draft.length)), ui.draft.length);
+    sfx('cardSlide', { pitch: 0.8 });
+  }
+  // the discard pile tapped with no card in hand: every planned play this turn, each with Take back
+  function playsSheet(v) {
+    const dv = draftView(v);
+    const where = id => { const i = dv.species.findIndex(x => x.id === id); return dv.species.length > 1 && i >= 0 ? ' · species ' + (i + 1) : ''; };
+    const rows = (ui.food != null ? [['food', 'Food card: ' + T(ui.food) + ' (' + fmtFood(DECK[ui.food].food) + ')']] : [])
+      .concat(ui.draft.map((m, i) => [i, describeMove(null, m) + (m.t !== 'species' ? where(m.s) : '')]));
+    sheet('Your plays this turn', rows.length ? '<div class="choices">' + rows.map(([k, txt]) => '<div class="row" style="gap:8px"><span class="grow small">' + esc(txt) + '</span><button class="btn small" data-tb="' + k + '">Take back</button></div>').join('') + '</div>' :
+      '<p class="muted small" style="margin-top:0">Nothing played yet this turn.</p>', e => {
+      const b = e.target.closest('[data-tb]');
+      if (!b) return;
+      if (b.dataset.tb === 'food') { ui.food = null; ui.foodAt = 0; sfx('cardSlide', { pitch: 0.8 }); } else takeBack(+b.dataset.tb);
+      renderPlay();
+      if (ui.food != null || ui.draft.length) playsSheet(curView()); else closeSheet();
+    });
+  }
   function dropSheet(v, id) {
     const sp = draftView(v).species.find(x => x.id === id);
     if (!sp || !(sp.traits.length + sp.hidden.length)) { speciesSheet(v, id); return; }
@@ -1113,6 +1237,14 @@
       send({ t: 'food', card: c }); return;
     }
     if (k === 'nofood') { send({ t: 'food' }); return; }
+    if (k === 'growcancel') { sfx('cardSlide', { pitch: 0.8 }); ui.grow = null; renderPlay(); return; }
+    // fluid play: Undo takes back the last thing placed (the food card counts); Done sends it all in one move
+    if (k === 'undo' && v.fluid && v.phase === 'play' && ui.food != null && ui.foodAt >= ui.draft.length) { takeBackFood(); return; }
+    if (k === 'done' && v.fluid && v.phase === 'play') {
+      if (v.me && v.me.hand.length && ui.food == null) { sfx('error'); toast('Put a food card at the watering hole'); return; }
+      ui.sel = null; ui.grow = null;
+      send(Object.assign({ t: 'play', moves: ui.draft.slice() }, ui.food != null ? { food: ui.food } : {})); return;
+    }
     if (k === 'undo') { if (ui.draft.length) sfx('cardSlide', { pitch: 0.8 }); ui.draft.pop(); renderPlay(); return; }
     if (k === 'done') {
       const moves = ui.draft.slice();
@@ -1159,7 +1291,10 @@
       ui.gen++; ui.tapLock = Date.now() + 450;
       table.act(action);
       resetSel();
-    } catch (err) { sfx('error'); toast(err.message || 'That move isn’t allowed'); resetSel(); }
+    } catch (err) {
+      sfx('error'); toast(err.message || 'That move isn’t allowed');
+      if (action.t === 'play' && curView().fluid) { ui.sel = null; ui.grow = null; } else resetSel(); // fluid: the planned plays stay to fix
+    }
     renderPlay(); // the bite (snap + shake on the prey) comes from fxStep, the same for every player's attacks
   }
 
@@ -1170,7 +1305,9 @@
     const a = B.decide(s, ME, 'hard');
     if (s.phase === 'food') { ui.sel = a.card; renderPlay(); toast('Hard computer would feed with ' + T(a.card) + ' (' + fmtFood(DECK[a.card].food) + ')'); return; }
     if (s.phase === 'play') {
-      sheet('Hard computer’s plan', a.moves.length ? '<ul class="log">' + a.moves.map(m => '<li class="me">' + esc(describeMove(s, m)) + (m.s != null && m.t !== 'species' ? ' · on ' + spName(s, m.s < 0 ? -1 : m.s) : '') + '</li>').join('') + '</ul>' : '<p class="muted">Keep your cards this round.</p>');
+      // fluid play: its food card first, then its card plays
+      const food = s.fluid && a.food != null ? '<li class="me">Food card: ' + esc(T(a.food)) + ' (' + fmtFood(DECK[a.food].food) + ')</li>' : '';
+      sheet('Hard computer’s plan', a.moves.length || food ? '<ul class="log">' + food + a.moves.map(m => '<li class="me">' + esc(describeMove(s, m)) + (m.s != null && m.t !== 'species' ? ' · on ' + spName(s, m.s < 0 ? -1 : m.s) : '') + '</li>').join('') + '</ul>' : '<p class="muted">Keep your cards this round.</p>');
       return;
     }
     toast('Hard computer: ' + describe(s, a).replace(/<[^>]+>/g, ''));
@@ -1199,8 +1336,8 @@
   const RULES_HTML =
     '<p style="margin:0"><b>Goal:</b> most points at the end = food eaten + population of living species + traits on living species.</p>' +
     '<p style="margin:0"><b>1. Deal:</b> 3 cards, plus 1 per species you have.</p>' +
-    '<p style="margin:0"><b>2. Food card:</b> everyone puts one card face down at the watering hole.</p>' +
-    '<p style="margin:0"><b>3. Play cards:</b> one player at a time, from the first player (Quick Play: all at once). A card becomes a face-down trait (up to 3 per species, 2 with two players, no doubles), a new species at either end, or +1 body size or +1 population (max 6). You may also discard a trait you have.</p>' +
+    '<p style="margin:0"><b>2. Food card:</b> during your play turn, put one card face down at the watering hole (the rulebook has everyone do this first, together).</p>' +
+    '<p style="margin:0"><b>3. Play cards:</b> one player at a time, from the first player (Quick Play: all at once), in any order with your food card. A card becomes a face-down trait (up to 3 per species, 2 with two players, no doubles), a new species at either end, or +1 body size or +1 population (max 6). You may also discard a trait you have.</p>' +
     '<p style="margin:0"><b>4. Reveal:</b> traits flip up; Fertile, Fat Tissue and Long Neck act (you choose their order); then the food cards add (or remove) plant food.</p>' +
     '<p style="margin:0"><b>5. Feed:</b> in turn order, feed one species at a time: 1 plant food from the watering hole, or a Carnivore attacks a smaller species (even your own) for meat. If a hungry species of yours can eat, you must feed it; otherwise you may pass.</p>' +
     '<p style="margin:0"><b>6. End of round:</b> unfed population starves (a species at 0 goes extinct: draw 1 card per trait it had); eaten food goes in your bag. The game ends after the round in which the deck runs out. Ties: most traits, then most population.</p>';
@@ -1223,8 +1360,7 @@
       (not.length ? '<div class="label" style="margin-top:8px">Safe from</div><ul class="log">' + not.map(x => '<li>' + nm(x.cp) + ' ' + v.players[x.cp].species[x.ci].body + '/' + v.players[x.cp].species[x.ci].pop + ': ' + esc(x.why) + '</li>').join('') + '</ul>' : ''));
   }
   function holeSheet(v) {
-    const myF = v.me && v.me.foodCard != null && v.me.foodCard >= 0 ? DECK[v.me.foodCard].food : 0;
-    const fc = O.holeForecast(v, myF);
+    const fc = O.holeForecast(v, myFoodNum(v, false));
     const need = O.plantDemand(draftView(v));
     const max = Math.max(...fc.list.map(x => x.p), 0.01);
     const bars = fc.list.filter(x => x.p > 0.002).map(x => '<div class="row small" style="gap:6px"><span class="num" style="width:26px;text-align:right">' + x.h + '</span><div class="grow" style="height:10px;background:var(--bg-soft);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:' + (x.p / max * 100).toFixed(1) + '%;background:' + (x.h >= need ? 'var(--good)' : 'var(--bad)') + '"></i></div><span class="num" style="width:40px;text-align:right">' + pct(x.p) + '</span></div>').join('');

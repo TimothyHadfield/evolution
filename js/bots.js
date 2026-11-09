@@ -167,6 +167,15 @@
     }
     return { t: 'play', moves };
   }
+  // fluid play (food card placed in the play turn): the food card first, by the same habits as the
+  // separate food step, then the card plays from the rest of the hand
+  function chooseFluid(s, p, lv) {
+    const pl = s.players[p];
+    if (!pl.hand.length) return Object.assign(choosePlays(s, p, lv), { food: null });
+    const food = chooseFood(s, p, lv).card;
+    const rest = Object.assign({}, s, { players: s.players.map((q, i) => (i === p ? Object.assign({}, q, { hand: q.hand.filter(id => id !== food) }) : q)) });
+    return Object.assign(choosePlays(rest, p, lv), { food });
+  }
   // a cheap copy of the engine's play rules for planning (the engine re-checks everything)
   function simPlay(s, pl, m) {
     const k = pl.hand.indexOf(m.card);
@@ -265,7 +274,7 @@
   function decide(s, p, level) {
     const lv = level || s.players[p].bot || 'hard';
     if (s.phase === 'food') return chooseFood(s, p, lv);
-    if (s.phase === 'play') return choosePlays(s, p, lv);
+    if (s.phase === 'play') return s.fluid ? chooseFluid(s, p, lv) : choosePlays(s, p, lv);
     if (s.phase === 'leaf') return { t: 'leaf', k: 0 }; // the engine lists the best order first
     return chooseFeed(s, p, lv);
   }

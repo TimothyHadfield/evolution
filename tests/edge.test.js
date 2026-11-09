@@ -27,7 +27,7 @@ test('deck and discard both empty at the deal: that round is the last (the game 
 });
 
 test('a player with no cards at the food step places nothing and the round goes on', () => {
-  let s = E.newGame({ seed: 9, players: [{ name: 'Me' }, { name: 'C', bot: 'hard' }], stepBots: true });
+  let s = E.newGame({ seed: 9, players: [{ name: 'Me' }, { name: 'C', bot: 'hard' }], stepBots: true, fluid: false });
   assert.strictEqual(s.phase, 'food');
   s.discard.push(...s.players[0].hand); s.players[0].hand = [];
   const v = E.view(s, 0);

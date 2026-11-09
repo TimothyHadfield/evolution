@@ -38,7 +38,7 @@ Status: every number below is asserted by `tests/engine.test.js`.
   - 2 players: remove 40 random cards; at most 2 traits per species.
   - 6 players: Quick Play is required.
 - **Deal** [R]: 3 cards, plus 1 for each species you have. A player with no species gets a new one first.
-- **Food cards** [R]: each player places one card face down at once.
+- **Food cards** [R]: each player places one card face down at once. (This site places it during your play turn instead; see "Food card in the play turn" below.)
 - **Play cards** [R]: in turn order from the first player, one player at a time. With Quick Play (an optional variant [R]), everyone plays at once. Ways to play a card:
   - as a face-down trait (at most 3, no duplicates);
   - as a new species at either end;
@@ -85,6 +85,7 @@ Status: every number below is asserted by `tests/engine.test.js`.
 
 - **Leaf traits' order** [R p.6, checked 2026-10-28]: "If a player has more than 1 of these cards in play, they choose the order in which their traits activate." The engine tries every order of a player's leaf cards (up to 6 cards) and, when the orders give different results, asks a person to pick one (phase `leaf`, action `{t:'leaf', k}`; the best order is listed first). Computers take the best order. Tests: `tests/engine.test.js` "reveal: the owner chooses…" (seen failing on the old engine), `tests/leaf-ui.mjs`, `tests/online.test.mjs` 1b. Measured in 300 computer games: order changed the result in 23 of 1,944 player-reveals with 2+ leaf cards; the old fixed order was never worse.
 - **Intelligence timing** [R p.12, checked 2026-10-28]: "discard one or more cards from their hand during any of their feeding turns", "in addition to the player's normal feeding turn and as many times as you want". The engine already does exactly this (own feeding turn, repeatable). An earlier designer post (source D) allowed it any time; the 2017 rulebook we build narrows it to your feeding turns, so no change.
+- **Food card in the play turn** (Tim's chosen variant, 2026-11-09; the rulebook [R] has everyone place food cards first, at once). Tim: "make the card playing stage more fluid for the user so that they can choose to do any order of the playing cards, upgrading, etc. ... Basically keep everything the same except allow the user to choose when they place it in the watering hole". Engine: new games carry `s.fluid` (default on; old saves without it keep the two-step flow). Rounds start straight in `play`; the play action is `{t:'play', moves, food}`, and `food` is required while you held cards, must be in your hand and can't be a card a move uses (empty hand: no food card). Food cards stay hidden until the reveal, and the hole sum is unchanged. Computers pick the food card first (same choice as before), then their plays from the rest. The guided first game stays two-step. Daily, vs-computer and online games are fluid. Tests: `tests/fluid.test.js` (11, 10 seen failing on the old engine), `tests/fluid-ui.mjs` (seen failing on the old code). Ladder, 400 games per pairing, classic → fluid: Hard>Easy 98.5 → 98.5%, Hard>Medium 72.8 → 73.0%, Medium>Easy 77.4 → 77.4%, Hard at 4 players 51.5 → 53.0%, at 3 players 57.5 → 57.0%.
 
 ## Simplifications
 - **Scavenger order:** Scavengers take meat clockwise from the attacker. The food bank is unlimited, so the order can't change a result (reasoned).

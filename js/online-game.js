@@ -13,7 +13,7 @@
     id: 'evolution',
     minSeats: 2,
     maxSeats: 6,
-    // options: {level: 'easy'|'medium'|'hard', quick: Quick Play variant}
+    // options: {level: 'easy'|'medium'|'hard', quick: Quick Play variant, fluid (default on)}
     setup(nSeats, options, rng, seats) {
       const o = options || {};
       const level = LEVELS.indexOf(o.level) >= 0 ? o.level : 'hard';
@@ -22,7 +22,8 @@
         const s = (seats && seats[i]) || { kind: 'computer' };
         players.push({ name: Array.from(String(s.name || (s.kind === 'computer' ? 'Computer ' + (i + 1) : 'Player ' + (i + 1)))).slice(0, 24).join(''), bot: s.kind === 'computer' ? level : null });
       }
-      return E.newGame({ seed: Math.floor(rng() * 4294967296) >>> 0, players, quick: o.quick === true });
+      // fluid: food card placed during your play turn (new rooms; {fluid:false} keeps the separate food step)
+      return E.newGame({ seed: Math.floor(rng() * 4294967296) >>> 0, players, quick: o.quick === true, fluid: o.fluid !== false });
     },
     toAct(state) { return E.toAct(state); },
     apply(state, seat, action) {

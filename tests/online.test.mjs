@@ -59,7 +59,7 @@ const clone = x => JSON.parse(JSON.stringify(x));
 
 // 2. Illegal moves throw.
 {
-  const s = game.setup(3, {}, mulberry(3), humans(3));
+  const s = game.setup(3, { fluid: false }, mulberry(3), humans(3)); // the separate food step (fluid rooms: tests/fluid.test.js)
   assert.equal(s.phase, 'food');
   const seat = 0;
   assert.throws(() => game.apply(clone(s), seat, { t: 'food', card: 999 }));

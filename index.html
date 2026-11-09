@@ -353,6 +353,14 @@
   .hole #discard .tn { display: none; }
   .hole #discard .art { top: 10%; bottom: 40%; }
   .hole #discard .fd { width: 21px; height: 16px; font-size: 10px; right: 1px; bottom: 1px; }
+  /* fluid play: places a lifted card can go glow (same blue as a species that can take it); my planned food card */
+  .hole .wh.can, .hole .discw.can #discard, .trk.can { outline: 2px solid rgba(110,168,254,.95); outline-offset: 2px; }
+  .trk.can { outline-offset: 0; border-radius: 3px; }
+  .hole .discw[data-disc] { position: relative; cursor: pointer; }
+  .hole .discw[data-disc]::after { content: ""; position: absolute; inset: -8px -6px; } /* a bigger tap area than the small pile */
+  .hole .discw[data-disc] #discard .tc { cursor: pointer; }
+  .hole .fcards .mine-food { outline: 1.5px dashed var(--accent-warm); outline-offset: 1px; cursor: pointer; }
+  .tr[data-planned] { cursor: pointer; }
   .hole .odds { margin-left: auto; font-size: 11px; color: #3b2c14; text-align: right; line-height: 1.25; white-space: nowrap; flex: none; padding: 3px 6px; border-radius: 2px;
     background: linear-gradient(#f6f0de, #ece2c6); box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.3); transform: rotate(-2deg); }
   .hole .odds b { color: #1d150a; }
@@ -606,21 +614,21 @@
 </div>
 
 <script src="js/cards.js?v=7"></script>
-<script src="js/engine.js?v=8"></script>
-<script src="js/bots.js?v=8"></script>
+<script src="js/engine.js?v=9"></script>
+<script src="js/bots.js?v=9"></script>
 <script src="js/odds.js?v=7"></script>
 <script src="js/lab-data.js?v=7"></script>
 <script src="js/strength-data.js?v=7"></script>
-<script src="js/online-game.js?v=7"></script>
+<script src="js/online-game.js?v=8"></script>
 <script src="js/art.js?v=7"></script>
 <script src="js/fx.js?v=7"></script>
 <script src="js/table.js?v=7"></script>
 <script src="js/game-fx.js?v=11"></script>
 <script src="js/coach.js?v=13"></script>
 <script src="js/profile.js?v=9"></script>
-<script src="js/tutorial.js?v=10"></script>
+<script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="14"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/pwa.js?v=13" data-version="15"></script>
+<script src="js/app.js?v=14"></script>
 </body>
 </html>
