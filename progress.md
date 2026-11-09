@@ -33,6 +33,10 @@ Live: https://timothyhadfield.github.io/evolution/
 | Improvement pass (2026-10-27) | Live (620e47d, 5b9f2d5, then review fixes). **Guided first game** (`js/tutorial.js` + shared `_coach`: stacked round 1 vs one Easy computer, 16 steps: food card, new species, Carnivore, Body +1, feed, attack, bag), offered once on a fresh visit, replay in Settings > How to play. **Rules sheet** in our own words (7 tabs, trait tables). **My stats** (`_profile` 1.1.0 + `js/evoprofile.js`: Easy 1200 / Medium 1410 / Hard 1580, 9 achievements, **Daily game** = you + 2 Medium, same deal for everyone). **Undo** vs computer (not Daily/guided/online). **Home-screen install + offline** (`_pwa` 1.2.0, `tools/pwa-check.mjs` 18/18). **Card art**: family scene behind each drawing + paper grain. **Key moments**: jaws close on the prey, extinction dust + "EXTINCT" (animations on + no reduced motion only). Ladder at 3/4/6 players measured, no AI change needed (see Decisions) |
 | Wave 3 (2026-10-28) | **Leaf-trait order** now follows the rulebook (p.6: the owner chooses): when a person's Fertile / Fat Tissue / Long Neck orders give different results, the action bar shows "Best order" + "Other order" (a sheet listing each different result); computers take the best order. Measured: 23 of 1,944 player-reveals (300 games) are affected. **Intelligence** checked: the 2017 rulebook says "during any of their feeding turns", which the engine already did. **Videos** tab in the Rules sheet (4 YouTube videos, oEmbed-checked). No new cards/house rules (none qualify, see Rejected). Settings/iPhone checked, no gaps (see Decisions) |
 
+| Fluid play (2026-11-09) | Live b8c3bee. New games: food card placed during your play turn (`s.fluid`); tap card → species / watering hole / discard pile (then Body, Pop or + glow); take back by tapping, Undo, or the discard-pile sheet. Guided game stays two-step. Ladder unchanged (400 games) |
+| Card directions + Card info (2026-11-09) | Live 68fecfe. Icons: Symbiosis + Cooperation show →, Warning Call both sides (engine was already right). "Card info" button on a lifted card |
+| Expansions (2026-11-09) | Live f7c6bdf. Picker "Game version": Base / Base + Flight / Climate, plus Add-ons (Promo I + II exact, extras + Promo III traits as "estimated food numbers", 6 scenarios). Flight: `js/flight.js`, 36 tests. Climate: `js/climate.js`, 9 zones, 30 events, 32 tests. Promos off under Climate. Data + sources: `docs/expansions-research.md`/`.json`. Ladder (200 games): Flight Hard>Medium 94%, Hard vs 3 Medium 71% (lopsided); Climate 65.5% / 49% |
+
 ## Edge pass: weird scenarios (2026-10-20)
 Scenario list and scripts: scratchpad `edge/evolution/` (scenarios.md, layout.mjs, behave.mjs). Re-run on live: layout 32/35 ok, behave 41/41 PASS.
 | Scenario | Before | After |
@@ -136,6 +140,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Daily game: you + 2 Medium computers, standard rules, no Undo. Online games are not recorded in My stats.
 
 ## NOT verified
+- 2026-11-09: fluid play, Flight and Climate on a real iPhone and in real two-phone online rooms (adapter tests only); Flight food numbers rest on one card scan (+8 rulebook samples match); 8 promo traits' food numbers are estimates; Flight games: Hard much stronger than Medium (94%) — maybe tune.
 - On Tim's real iPhone (only checked in WebKit at 393 px).
 - Visibility pass: zoom search time on an old/slow iPhone (laptop WebKit: median ~23 ms per redraw, worst ~330 ms on a new species count).
 - A full online game between two real phones.
@@ -151,7 +156,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Improvement pass: home-screen install on a real iPhone (pwa-check is WebKit headless); jaws/extinction look mid-game in a real attack (shots were triggered by hand at 393 + 1440); the guided game on a real phone.
 
 ## Rejected / parked
-- ~~Flight, Climate, Oceans~~: no public card lists to cross-check.
+- Flight + Climate: UN-parked and built 2026-11-09 (card data read from Tabletop Simulator saves + official rulebooks). Oceans / New World / The Beginning: separate games, not built.
 - ~~1st printing deck~~: only 3 traits' old values are known.
 - ~~Promo traits~~ (2026-10-28): the Biodiversity / Alone and Unafraid / Arms Race traits are digital-only (Switch app); the physical promos (Hibernation, Night Prowler) have no public food values to cross-check.
 - ~~Evolution: The Beginning rules~~ (2026-10-28): a separate 88-card game whose cards play differently and include Flight traits; no public card list.
