@@ -129,6 +129,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Rules-sheet links sit on cream paper: `.coach-rules .vids a` is dark blue (#2a4f9e) in index.html; the site's own link colour is unreadable there.
 
 ## Decisions
+- 2026-11-25 (Catan lessons wave): a game that ends while you watch stays on the table 4.5 s (2.5 s on fast), the winner's place glowing gold (inset, so the opponents' row can't clip it), then the score pad with its count-up and celebration; another player's carnivore attacking your species shows a short toast (the log line, "attacks your 1/1."). Verified by playing real end rounds in WebKit at 393×659 and 1280×720 (pad 4.57 s / 2.76 s fast after "Game over", 0 errors, no overflow).
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
 - Quick Play is a Settings switch, forced on at 6 players.
 - One simplification left: Scavengers take meat clockwise from the attacker (can't change a result; the food bank is unlimited, reasoned).

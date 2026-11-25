@@ -255,6 +255,7 @@
   // ------------------------------------------------------------------ ui state
   // fluid play (food card placed in the play turn): food = my planned food card, foodAt = how many planned plays
   // came before it (so Undo takes back in order), grow = a card put on the discard pile, waiting for Body / Pop / +
+  const FINALE_MS = 4500, FINALE_FAST = 2500; // how long a just-ended game stays on the table
   const ui = { hideOver: false, online: false, tab: 'play', sel: null, mode: 'trait', draft: [], food: null, foodAt: 0, grow: null, feedSel: null, target: null, needCard: null, cycle: [], prevLog: 0, botTimer: null, gen: 0, labTab: 'traits', calc: null, studyRound: null };
   function resetSel() { ui.sel = null; ui.mode = 'trait'; ui.draft = []; ui.food = null; ui.foodAt = 0; ui.grow = null; ui.feedSel = null; ui.target = null; ui.needCard = null; ui.cycle = []; }
   function restoreDraft() {
@@ -701,6 +702,21 @@
     if (!v || !v.players) { vPlay.innerHTML = '<div class="setup"><div class="panel"><b>Connecting…</b></div></div>'; return; }
     VER = v.version || null;
     if (v.over) markOver(v);
+    // the end is a moment: a game that ends while you watch keeps the table up a few seconds, the
+    // winner's place glowing, before the score pad comes up (a finished game opened later shows it at once)
+    if (v.over && ui.liveOf === table) {
+      const tb = table, ms = store.settings.speed === 'fast' ? FINALE_FAST : FINALE_MS;
+      ui.finaleUntil = Date.now() + ms;
+      setTimeout(() => {
+        ui.finaleUntil = 0;
+        if (table !== tb || ui.tab !== 'play') return;
+        renderPlay();
+        if (ui.finaleFx && FXL && GFX) GFX.perform(ui.finaleFx, FXL, fxEnv);
+        ui.finaleFx = null;
+      }, ms);
+    }
+    ui.liveOf = v.over ? null : table;
+    const finale = v.over && ui.finaleUntil > Date.now();
     const me = v.players[ME];
     const myTurn = v.toAct.indexOf(ME) >= 0 && !(table.online && net.busy);
     const fluidMine = isFluidPlay(v, myTurn);
@@ -729,7 +745,7 @@
       if (p === ME) return '';
       const turn = v.phase === 'feed' && v.turn === p;
       const st = v.phase === 'food' ? (pl.foodPicked ? 'ready' : 'choosing') : v.phase === 'play' ? (pl.done ? 'ready' : 'playing') : v.phase === 'leaf' && v.toAct.indexOf(p) >= 0 ? 'choosing' : '';
-      return '<div class="opp' + (turn ? ' turn' : '') + '" data-p="' + p + '"><div class="oh"><span class="plate"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span></span>' +
+      return '<div class="opp' + (turn ? ' turn' : '') + (finale && v.result.winners.indexOf(p) >= 0 ? ' won' : '') + '" data-p="' + p + '"><div class="oh"><span class="plate"><span class="dot" style="background:' + COLORS[p % 6] + '"></span><span class="nmx">' + esc(pl.name) + '</span></span>' +
         (v.first === p ? '<span class="fp" title="Feeds first">1st</span>' : '') +
         '<span class="st">' + st + '</span><span class="grow"></span>' + backsHtml(pl.handSize) + (pl.bag != null ? bagHtml(pl.bag, 'Food bag') : '') + '</div>' +
         '<div class="ospc">' + (pl.species.length ? pl.species.map(sp => miniSp(sp, p, v)).join('') : '<span class="muted small">no species</span>') + '</div></div>';
@@ -801,8 +817,8 @@
     }
     const fitKey = innerWidth + 'x' + innerHeight + ':' + v.players.length;
     if (!ui.fit || ui.fit.key !== fitKey) ui.fit = { key: fitKey, tight: false };
-    vPlay.innerHTML = '<div id="game" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine" id="mine">' + mine + '</div>' +
-      '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver ? overPanel(v) : '');
+    vPlay.innerHTML = '<div id="game" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine' + (finale && v.result.winners.indexOf(ME) >= 0 ? ' won' : '') + '" id="mine">' + mine + '</div>' +
+      '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver && !finale ? overPanel(v) : '');
     fitTable(v);
     layTable(v, handCards, revealing);
     afterRender(v);
@@ -951,7 +967,12 @@
     const prev = ui.fxTable === table ? ui.fxPrev : null;
     ui.fxTable = table; ui.fxPrev = v;
     if (!FXL || !GFX) return;
-    const ev = GFX.diff(prev, v, ME, { fresh, colors: COLORS });
+    let ev = GFX.diff(prev, v, ME, { fresh, colors: COLORS });
+    // the score count-up and the win/lose celebration wait for the score pad (after the finale)
+    if (v.over && ui.finaleUntil > Date.now()) {
+      const held = e => (e.el && /#over/.test(e.el)) || e.celebrate === 'win' || e.celebrate === 'lose';
+      ui.finaleFx = ev.filter(held); ev = ev.filter(e => !held(e));
+    }
     if (ev.length) GFX.perform(ev, FXL, fxEnv);
   }
   function needAfter(dv) { return O.plantDemand(dv); }
@@ -1224,7 +1245,16 @@
       }
     }
     if (v.over) markOver(v);
-    // new log lines from other players flash briefly in the status line (they also stay in the log)
+    // another player's carnivore attacking one of my species: a short note (it also stays in the log)
+    const last = v.log[v.log.length - 1], lastKey = last ? last.r + '|' + last.t : '';
+    if (ui.logOf === table && ui.logKey && lastKey !== ui.logKey) {
+      let k = v.log.length - 1;
+      while (k >= 0 && v.log[k].r + '|' + v.log[k].t !== ui.logKey) k--;
+      const myName = v.players[ME].name + '’s ';
+      if (k >= 0) v.log.slice(k + 1).filter(l => l.k === 'atk' && l.p !== ME && l.t.indexOf(' attacks ' + myName) > 0)
+        .forEach(l => toast(l.t.replace(' attacks ' + myName, ' attacks your ')));
+    }
+    ui.logOf = table; ui.logKey = lastKey;
     ui.prevLog = v.log.length;
   }
   function markOver(v) {
