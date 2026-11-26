@@ -880,11 +880,19 @@
     const lastOk = !!last && ok(last, ui.zoom.key === key);
     let best = lastOk ? last : { o: 1, m: 1, h: 1 };
     ui.zoomSearches = ui.zoomSearches || 0;
-    if (!(lastOk && ui.zoom.key === key) && (lastOk || ok(best))) {
+    const q = x => Math.round(x * 20) / 20;
+    let fits = lastOk || ok(best);
+    if (!fits && desk) {
+      // a short or narrow laptop window with many players: even normal size doesn't fit (the opponents
+      // ran over the watering hole and my boards climbed into it), so all three shrink together until it does
+      // (Tim 2026-11-25: "the top section with the other computers ... interlap with the watering hole plate")
+      for (let x = 0.95; x >= 0.55; x -= 0.05) { best = { o: q(x), m: q(x), h: q(x) }; if (ok(best)) { fits = true; break; } }
+      // then each part grows back into whatever room is left (below)
+    }
+    if (!(lastOk && ui.zoom.key === key) && fits) {
       ui.zoomSearches++;
       // largest size that still fits, found by halving: first all three together, then whatever room
       // is left goes to each part alone (the opponents' pieces first)
-      const q = x => Math.round(x * 20) / 20;
       const search = (mk, lo, hi, tries) => {
         for (let n = 0; n < tries && q(hi) - q(lo) > 0.04; n++) {
           const mid = q((lo + hi) / 2) > q(lo) ? q((lo + hi) / 2) : q(lo) + 0.05;

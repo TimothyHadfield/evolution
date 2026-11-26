@@ -130,6 +130,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 
 ## Decisions
 - 2026-11-25 (Catan lessons wave): a game that ends while you watch stays on the table 4.5 s (2.5 s on fast), the winner's place glowing gold (inset, so the opponents' row can't clip it), then the score pad with its count-up and celebration; another player's carnivore attacking your species shows a short toast (the log line, "attacks your 1/1."). Verified by playing real end rounds in WebKit at 393×659 and 1280×720 (pad 4.57 s / 2.76 s fast after "Game over", 0 errors, no overflow).
+- 2026-11-25 · Laptop table overlap fixed (Tim: "the top section with the other computers ... interlap with the watering hole plate ... looks ugly"). Cause (measured, same state in builds 1a099aa / bd3063f / e1f53ed): NOT a recent change; on desktop `zoomTable` only grew from zoom 1, so when even 1 didn't fit (3+ computers on a short/narrow window: 1024×680, 1366×650, even 1280×720 late game) the opponents scrolled/ran over the watering hole and my boards climbed into it. Now desktop shrinks all three together (0.95→0.55) until it fits, then each part grows back. New layout.test.mjs case (3 sizes) fails on e1f53ed, passes now; 13/13. app v19, pwa build 20.
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
 - Quick Play is a Settings switch, forced on at 6 players.
 - One simplification left: Scavengers take meat clockwise from the attacker (can't change a result; the food bank is unlimited, reasoned).

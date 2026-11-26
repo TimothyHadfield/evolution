@@ -133,6 +133,24 @@ for (const [w, h] of [[1280, 800], [393, 659]]) {
   });
 }
 
+// a short or narrow laptop window: the opponents, the watering hole and my boards never overlap
+// (Tim 2026-11-25: "the top section with the other computers ... interlap with the watering hole plate")
+const S4L = game(4, 3, s => s.round >= 6 && s.phase === 'feed');
+for (const [w, h] of [[1024, 680], [1366, 650], [1280, 720]]) {
+  await test('4 players, laptop ' + w + 'x' + h + ': opponents, watering hole and my boards don\'t overlap', async () => {
+    const { ctx, page } = await open(w, h, S4L);
+    const m = await page.evaluate(() => {
+      const r = s => document.querySelector(s).getBoundingClientRect();
+      let oppLow = 0; document.querySelectorAll('.opp').forEach(e => { oppLow = Math.max(oppLow, e.getBoundingClientRect().bottom); });
+      let mineTop = 1e9; document.querySelectorAll('#mine .sp').forEach(e => { mineTop = Math.min(mineTop, e.getBoundingClientRect().top); });
+      const o = document.querySelector('.opps');
+      return { oppLow: Math.round(oppLow), whTop: Math.round(r('.hole .wh').top), whLow: Math.round(r('.hole .wh').bottom), mineTop: Math.round(mineTop), oppsScroll: o.scrollHeight - o.clientHeight };
+    });
+    await ctx.close();
+    if (m.oppLow > m.whTop + 1 || m.whLow > m.mineTop + 1 || m.oppsScroll > 2) throw new Error('overlap: ' + JSON.stringify(m));
+  });
+}
+
 await browser.close();
 if (server) server.close();
 console.log('layout: ' + passed + ' passed, ' + failed + ' failed');
