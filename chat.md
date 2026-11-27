@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-11-25/26: laptop table overlap, then tininess redesign (main chat)
+- **Asked:** "the top section with the other computers playing ... interlap with the watering hole plate and the watering hole plate is weird and off centered"; then "evolution feels extreamly poorly designed right now with spacing and size and whatnot. So much is so tiny it's hard to read"; then "prepare md files for chat reset".
+- **Built:** 8ccbadb desktop zoom can shrink (overlap fix; not a recent regression, measured on 3 old builds). Then the redesign: my hand beside my boards on laptop, bigger watering-hole food cards, narrower side panel under 1200px, + room checked at every desktop size (see progress Decisions 2026-11-26). Also earlier this session: Catan lesson wave pieces (end-of-game reveal, attack toast here).
+- **Verified:** all 12 suites green on the working tree (counts in progress START HERE); WebKit shots at 1280×650, 1536×730, 1280×800 (hand tap), 393×659 (phone unchanged).
+- **Open:** small vertical shift when + slots appear on tap; 1024×680 opponents smallish; Tim's own laptop look.
+
 ## 2026-10-28: kit sweep 2: coach 1.2.0 (offer place auto, avoids Start; old offer-bottom override removed), pwa 1.4.0 (data-version 14); engine/edge/fx/tutorial/online/layout/tutorial-ui + pwa-check 18/18 green; leaf-ui 1 fail, same on main.
 
 ## 2026-10-28: wave 3 "just make the games better" (builder agent)

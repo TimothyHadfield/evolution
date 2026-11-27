@@ -458,8 +458,11 @@
   /* any screen too short for its content scrolls inside, so no button is ever out of reach */
   .setup { overflow-y: auto; -webkit-overflow-scrolling: touch; }
   @media (min-width: 900px) {
-    #game { grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: auto minmax(0, max-content) minmax(0, 1fr) max-content auto auto;
-      grid-template-areas: "status side" "opps side" "hole side" "mine side" "hand side" "acts side"; gap: 8px 14px; }
+    /* laptop: my hand sits beside my boards (not under them), so the height a laptop lacks goes to
+       bigger pieces instead of a hand row (Tim 2026-11-26: "So much is so tiny it's hard to read") */
+    #game { grid-template-columns: minmax(0, 1fr) clamp(220px, calc(120px + var(--hn, 3) * 62px), 46%) 290px; grid-template-rows: auto minmax(0, max-content) minmax(0, 1fr) max-content auto;
+      grid-template-areas: "status status side" "opps opps side" "hole hole side" "mine hand side" "acts acts side"; gap: 8px 14px; }
+    .hand { align-self: center; }
     .status .ph { font-size: 16px; }
     .opps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; align-items: start; }
     .opp { padding: 5px 8px 7px; gap: 5px; }
@@ -479,15 +482,15 @@
     .hole .ptoks .ftk { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; }
     .hole .hn { font-size: 40px; }
     .hole .hl { font-size: 10px; }
-    .hole .fcards > * { --card-w: 46px; }
-    .hole .fcards > * + * { margin-left: -4px; }
+    .hole .fcards > * { --card-w: 62px; }
+    .hole .fcards > * + * { margin-left: -2px; }
     .hole .fcards .art { top: 30%; bottom: 36%; }
-    .hole .fcards .fd { width: 26px; height: 20px; font-size: 12.5px; }
-    .hole .fcards .tn { display: block; font-size: 6.5px; }
+    .hole .fcards .fd { width: 30px; height: 23px; font-size: 14px; }
+    .hole .fcards .tn { display: block; font-size: 8.5px; }
     .hole #discard .tc { --card-w: 50px; }
     .hole #discard .fd { width: 26px; height: 20px; font-size: 12.5px; }
     .hole .odds { font-size: 13px; padding: 5px 9px; }
-    .mine { align-items: flex-end; align-content: flex-end; flex-wrap: wrap; overflow-y: auto; gap: 12px; padding-top: 10px; justify-content: center; }
+    .mine { align-items: flex-end; align-content: flex-end; flex-wrap: wrap; overflow-y: auto; gap: 12px; padding-top: 10px; justify-content: flex-end; }
     .sp { width: 150px; }
     .sp .trs { min-height: 84px; padding: 0 8px; }
     .sp .board { padding: 6px 7px 7px; gap: 3px; border-radius: 9px; }
@@ -509,6 +512,8 @@
     #g-side .logbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #btn-sheet-log { display: none; }
   }
+  /* a narrow laptop window: the side panel gives the table more of the width */
+  @media (min-width: 900px) and (max-width: 1199px) { #game { grid-template-columns: minmax(0, 1fr) clamp(200px, calc(110px + var(--hn, 3) * 56px), 46%) 230px; } }
   ul.log { list-style: none; margin: 0; padding: 0; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; }
   ul.log li { color: var(--muted); }
   ul.log li.me { color: var(--text); }
@@ -676,7 +681,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="20"></script>
-<script src="js/app.js?v=19"></script>
+<script src="js/pwa.js?v=13" data-version="21"></script>
+<script src="js/app.js?v=20"></script>
 </body>
 </html>

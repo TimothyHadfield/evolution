@@ -817,7 +817,7 @@
     }
     const fitKey = innerWidth + 'x' + innerHeight + ':' + v.players.length;
     if (!ui.fit || ui.fit.key !== fitKey) ui.fit = { key: fitKey, tight: false };
-    vPlay.innerHTML = '<div id="game" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine' + (finale && v.result.winners.indexOf(ME) >= 0 ? ' won' : '') + '" id="mine">' + mine + '</div>' +
+    vPlay.innerHTML = '<div id="game" style="--hn:' + (handCards ? handCards.length : 0) + '" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine' + (finale && v.result.winners.indexOf(ME) >= 0 ? ' won' : '') + '" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver && !finale ? overPanel(v) : '');
     fitTable(v);
     layTable(v, handCards, revealing);
@@ -862,7 +862,7 @@
       if (o.scrollHeight > o.clientHeight + 2 || o.scrollWidth > o.clientWidth + 2) return false;
       for (const s of o.querySelectorAll('.ospc')) if (s.scrollWidth > s.clientWidth + 2) return false;
       if (mine.scrollHeight > mine.clientHeight + 1) return false;
-      if (z.m > 1 && !loose) { // (loose: my own planned new boards may slide sideways rather than shrink the table on a tap)
+      if ((z.m > 1 || desk) && !loose) { // (laptop: my hand sits beside my boards, so the + room is checked at every size) // (loose: my own planned new boards may slide sideways rather than shrink the table on a tap)
         const kids = [...mine.children].filter(k => k.offsetWidth), mr = mine.getBoundingClientRect();
         if (kids.length) {
           const w = kids[kids.length - 1].getBoundingClientRect().right - kids[0].getBoundingClientRect().left;
@@ -873,7 +873,7 @@
       // the hand's box is its grid row (the fan sets its own height later): it must hold a held card
       return hand.getBoundingClientRect().height >= handNeed(z.h) - 1;
     };
-    const caps = desk ? { o: 1.6, m: 1.25, h: 1 } : { o: 1.7, m: 1.35, h: 1.3 };
+    const caps = desk ? { o: 1.6, m: 1.5, h: 1.3 } : { o: 1.7, m: 1.35, h: 1.3 };
     const prevH = hand.style.minHeight;
     if (!desk) { hand.style.height = ''; hand.style.minHeight = '0px'; hand.style.alignSelf = 'stretch'; } // measure the row, not the last fan
     const last = ui.zoom && ui.zoom.screen === screen ? { o: ui.zoom.o, m: ui.zoom.m, h: ui.zoom.h } : null;
@@ -886,7 +886,9 @@
       // a short or narrow laptop window with many players: even normal size doesn't fit (the opponents
       // ran over the watering hole and my boards climbed into it), so all three shrink together until it does
       // (Tim 2026-11-25: "the top section with the other computers ... interlap with the watering hole plate")
-      for (let x = 0.95; x >= 0.55; x -= 0.05) { best = { o: q(x), m: q(x), h: q(x) }; if (ok(best)) { fits = true; break; } }
+      // (only my boards shrink first: when just they plus their + buttons are too wide beside the hand)
+      for (let x = 0.95; x >= 0.75; x -= 0.05) { best = { o: 1, m: q(x), h: 1 }; if (ok(best)) { fits = true; break; } }
+      for (let x = 0.95; !fits && x >= 0.55; x -= 0.05) { best = { o: q(x), m: q(x), h: q(x) }; if (ok(best)) { fits = true; break; } }
       // then each part grows back into whatever room is left (below)
     }
     if (!(lastOk && ui.zoom.key === key) && fits) {
@@ -901,7 +903,8 @@
       };
       const b0 = best;
       search(x => ({ o: Math.max(b0.o, Math.min(x, caps.o)), m: Math.max(b0.m, Math.min(x, caps.m)), h: Math.max(b0.h, Math.min(x, caps.h)) }), Math.min(b0.o, b0.m, b0.h), Math.max(caps.o, caps.m, caps.h), 4);
-      for (const [k, n] of [['o', 3], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
+      // laptop: my own boards grow first, then the opponents, then the hand
+      for (const [k, n] of desk ? [['m', 3], ['o', 3], ['h', 2]] : [['o', 3], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
     }
     hand.style.minHeight = prevH; hand.style.alignSelf = '';
     best = { o: +best.o.toFixed(2), m: +best.m.toFixed(2), h: +best.h.toFixed(2) };

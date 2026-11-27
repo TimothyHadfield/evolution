@@ -2,7 +2,7 @@
 
 ## START HERE
 Read in this order: this file → `CLAUDE.md` → `docs/rules-check.md` → `docs/ideas.md` → `chat.md`.
-Last updated: 2026-10-28 (wave 3: leaf-trait order chosen by the owner, Videos tab in the Rules sheet). Kit sweep 2 (10-28): `_coach` 1.2.0 + `_pwa` 1.4.0 byte copies, offer `place:'auto', avoid:['[data-go="start"]']` (the `--coach-offer-bottom` override is gone; offer measured clear of the tab bar and Start at 393x659, 320x568, 659x393), pwa data-version 14, Settings 320px no sideways scroll, no `<select>`. `tests/leaf-ui.mjs` leaf-order check fails on main too ("Other order" button at y 624-684 of 659, under the fold): not fixed in the sweep.
+Last updated: 2026-11-26 (laptop table redesign, see Decisions; all suites green: engine 35, fx 10, edge 4, fluid 11, climate 32, flight 36, tutorial 9, online 8, layout 13, fluid-ui 2, leaf-ui 3, tutorial-ui 18). Older: 2026-10-28 (wave 3: leaf-trait order chosen by the owner, Videos tab in the Rules sheet). Kit sweep 2 (10-28): `_coach` 1.2.0 + `_pwa` 1.4.0 byte copies, offer `place:'auto', avoid:['[data-go="start"]']` (the `--coach-offer-bottom` override is gone; offer measured clear of the tab bar and Start at 393x659, 320x568, 659x393), pwa data-version 14, Settings 320px no sideways scroll, no `<select>`. `tests/leaf-ui.mjs` leaf-order check fails on main too ("Other order" button at y 624-684 of 659, under the fold): not fixed in the sweep.
 
 ## Goal right now
 Evolution (North Star Games, base game, 2nd edition) as a site with:
@@ -131,6 +131,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 ## Decisions
 - 2026-11-25 (Catan lessons wave): a game that ends while you watch stays on the table 4.5 s (2.5 s on fast), the winner's place glowing gold (inset, so the opponents' row can't clip it), then the score pad with its count-up and celebration; another player's carnivore attacking your species shows a short toast (the log line, "attacks your 1/1."). Verified by playing real end rounds in WebKit at 393×659 and 1280×720 (pad 4.57 s / 2.76 s fast after "Game over", 0 errors, no overflow).
 - 2026-11-25 · Laptop table overlap fixed (Tim: "the top section with the other computers ... interlap with the watering hole plate ... looks ugly"). Cause (measured, same state in builds 1a099aa / bd3063f / e1f53ed): NOT a recent change; on desktop `zoomTable` only grew from zoom 1, so when even 1 didn't fit (3+ computers on a short/narrow window: 1024×680, 1366×650, even 1280×720 late game) the opponents scrolled/ran over the watering hole and my boards climbed into it. Now desktop shrinks all three together (0.95→0.55) until it fits, then each part grows back. New layout.test.mjs case (3 sizes) fails on e1f53ed, passes now; 13/13. app v19, pwa build 20.
+- 2026-11-26 · Laptop table redesign (Tim: "evolution feels extreamly poorly designed right now with spacing and size ... So much is so tiny it's hard to read"). Laptop grid now: status / opps / hole full width, then **my boards (right-aligned) beside my hand** (hand column width follows the card count via `--hn` on `#game`), side panel 290px (230px under 1200px). Watering-hole food cards 46→62px. Zoom caps m 1.5 / h 1.3; my boards grow first. Desktop `ok()` now checks my boards + the two + buttons (104px) fit at EVERY size, and when not, only my boards shrink first (0.95→0.75) before everything shrinks: before that, tapping a hand card at 1280×800 made the + slots wrap and the opponents dropped 1.35→0.95 (caught by layout.test "tapping a hand card"). Phone layout unchanged. app v20, pwa build 21.
 - 2nd edition, 2017 rulebook; the 1st printing is parked.
 - Quick Play is a Settings switch, forced on at 6 players.
 - One simplification left: Scavengers take meat clockwise from the attacker (can't change a result; the food bank is unlimited, reasoned).
@@ -142,6 +143,7 @@ One step's sounds are squeezed into ~1.8 s (0.8 s before a result) so sound neve
 - Daily game: you + 2 Medium computers, standard rules, no Undo. Online games are not recorded in My stats.
 
 ## NOT verified
+- 2026-11-26 laptop redesign: when the + slots appear on a hand tap (play phase), my boards' row grows ~24px, so the watering hole shifts up a little (zoom stays; measured 1280×800). Not fixed. 1024×680 with 3 computers: opponents still smallish. Not seen on Tim's real laptop.
 - 2026-11-09: fluid play, Flight and Climate on a real iPhone and in real two-phone online rooms (adapter tests only); Flight food numbers rest on one card scan (+8 rulebook samples match); 8 promo traits' food numbers are estimates; Flight games: Hard much stronger than Medium (94%) — maybe tune.
 - On Tim's real iPhone (only checked in WebKit at 393 px).
 - Visibility pass: zoom search time on an old/slow iPhone (laptop WebKit: median ~23 ms per redraw, worst ~330 ms on a new species count).
