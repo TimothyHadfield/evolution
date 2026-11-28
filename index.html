@@ -356,6 +356,18 @@
     .opps.many.rows .msp .bp .cube, #game.tight .opps.many.rows .msp .bp .cube { width: 16px; height: 16px; font-size: 12px; }
     .opps.many.rows .msp .ics .ic, .opps.many.rows .msp .ics .hidden, #game.tight .opps.many.rows .msp .ics .ic, #game.tight .opps.many.rows .msp .ics .hidden { width: 14px; height: 13px; }
     .opps.many.rows .msp .ics .ti, #game.tight .opps.many.rows .msp .ics .ti { width: 11px; height: 11px; }
+    /* fit pass round 2: each line uses its full width instead of its height (the rows ended ~100px short of the
+       edge): the name on one line, trait icons two high, bigger numbers; the saved height goes to the hand */
+    .opps.many.rows .opp { grid-template-columns: 86px minmax(0, 1fr); }
+    .opps.many.rows .ospc { flex-wrap: nowrap; }
+    .opps.many.rows .msp .ics { display: grid; grid-template-rows: repeat(2, auto); grid-auto-flow: column; grid-auto-columns: 14px; align-content: center; gap: 1px; }
+    .opps.many.rows .msp .bp .cube, #game.tight .opps.many.rows .msp .bp .cube { width: 18px; height: 18px; font-size: 15px; }
+    .opps.many.rows .ohand b, .opps.many.rows .opp .oh .bag b, #game.tight .opps.many.rows .opp .oh .bag b { font-size: 16px; }
+    .opps.many.rows .msp .ics .ic, .opps.many.rows .msp .ics .hidden, #game.tight .opps.many.rows .msp .ics .ic, #game.tight .opps.many.rows .msp .ics .hidden { height: 14px; }
+    .ohand b { font-size: 12px; }
+    /* a packed phone table with 2-3 opponents: their places sit closer, so the held hand gets readable names */
+    #game.tight .opps:not(.many) { gap: 2px; }
+    #game.tight .opps:not(.many) .opp { padding: 2px 6px 3px; gap: 2px; }
     /* my boards share the row's width (5-6 species all in view, no sideways scroll), never under 62px */
     .mine .sp { flex: 0 1 auto; min-width: 50px; container-type: inline-size; }
     #mine { gap: 5px; }
@@ -717,7 +729,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="22"></script>
-<script src="js/app.js?v=21"></script>
+<script src="js/pwa.js?v=13" data-version="23"></script>
+<script src="js/app.js?v=22"></script>
 </body>
 </html>

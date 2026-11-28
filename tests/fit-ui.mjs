@@ -107,6 +107,7 @@ const measure = page => page.evaluate(() => {
     oppHand: min('.ohand b', fs), oppBag: min('.opp .bag b', fs), oppName: min('.opp .nmx', fs),
     nameCut: [...document.querySelectorAll('.opp .nmx')].filter(vis).filter(n => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 2).map(n => n.textContent),
     offscreen: off('#mine .sp, #hand .tc, .hole .wh, .opp, .acts .btn'),
+    zoom: ['.opps', '.mine', '.hand'].map(s => { const e = document.querySelector(s); return e && +e.style.zoom; }),
     pageScroll: de.scrollHeight > innerHeight + 1, overflowX: de.scrollWidth > innerWidth + 1, oppsScroll: o ? o.scrollHeight - o.clientHeight : 0,
   };
 });
@@ -122,8 +123,10 @@ const want = {
 };
 // before the fit pass (393x659, 6 players): hand names 6.8, food 7.8, opponents' cubes 9, my 5th board off screen,
 // opponents' area scrolled 20 px (219 px at 320x568)
-const PHONE = { handName: 7.5, handFood: 9.5, oppCube: 9.5, oppIcon: 9.5, oppHand: 9.5, oppBag: 9.5 };
-const SMALL = { myTrait: 8, myCube: 9.5, myTrackNum: 7, myFood: 8.5, oppCube: 6.5, oppIcon: 6.5, oppHand: 8.5, oppBag: 8.5 };
+// round 1 (2026-11-28): hand names 7.8, food 9.7, opponents' cubes 9.6 with ~100 px of empty wood beside them;
+// round 2 uses that slack: phone portrait now wants the full 10 px names and 12 px numbers
+const PHONE = { oppIcon: 11 };
+const SMALL = { myTrait: 8, myCube: 9.5, myTrackNum: 7, myFood: 8.5, handName: 7.5, handFood: 9.5, oppCube: 6.5, oppIcon: 6.5, oppHand: 8.5, oppBag: 8.5 };
 for (const [label, st] of [['late game, 6 players, feeding', LATE6], ['late game, 6 players, playing cards', LATE6P], ['6 species of mine, 3 players', WIDE3]]) {
   for (const [w, h] of SIZES) {
     if (process.env.ONLY && !process.env.ONLY.split(',').includes(w + 'x' + h)) continue;
@@ -138,8 +141,6 @@ for (const [label, st] of [['late game, 6 players, feeding', LATE6], ['late game
       // (an iPhone SE or a phone held sideways is smaller still: every board of mine stays in view, a size down)
       const small = w < 900 && (w < 360 || h < 600);
       const W = w < 900 ? Object.assign({}, want, PHONE, small ? SMALL : {}) : want;
-      // 6 players at 320x568: their boards can't all fit readable, so their area may scroll inside (known limit)
-      if (w < 360 && label.startsWith('late game, 6')) m.oppsScroll = 0;
       for (const k in W) if (m[k] != null && m[k] < W[k] - 0.05) bad.push(k + ' ' + m[k] + ' px (want >= ' + W[k] + ')');
       // opponents' names ("Computer 1".."Computer 5") must stay whole, or the number that tells them apart is lost
       if (m.nameCut.length) bad.push('names cut: ' + m.nameCut.join(', '));

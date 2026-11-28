@@ -840,7 +840,10 @@
       if (ui.fit.rowsKey !== rk) {
         o.style.zoom = 1; o.classList.remove('rows'); const h2 = o.scrollHeight;
         o.classList.add('rows'); const h1 = o.scrollHeight;
-        ui.fit.rowsKey = rk; ui.fit.rows = h1 < h2;
+        // (a line too long for a narrow phone is shrunk to the width, so it is compared at that size)
+        const extra = Math.max(0, ...[...o.querySelectorAll('.ospc')].map(s => s.scrollWidth - s.clientWidth));
+        const zr = o.clientWidth / (o.clientWidth + extra);
+        ui.fit.rowsKey = rk; ui.fit.rows = h1 * zr < h2; ui.fit.rowsZ = zr;
       }
       o.classList.toggle('rows', !!ui.fit.rows);
     }
@@ -871,7 +874,7 @@
     // room the hand needs: one card held up plus its tilt (empty hands keep the same room)
     const probe = document.createElement('i'); probe.className = 'tc'; hand.appendChild(probe);
     const cw = parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 60; probe.remove();
-    const handNeed = h => (cw * 88 / 63 + 26) * h;
+    const handNeed = h => cw * 88 / 63 * h + 26 * Math.min(h, 1.1);
     // room for the + buttons that appear beside my boards while placing cards (kept all round, so my
     // boards don't change size between the phases)
     const plusRoom = v.over ? 0 : 2 * 52;
@@ -901,7 +904,7 @@
       // the hand's box is its grid row (the fan sets its own height later): it must hold a held card
       return hand.getBoundingClientRect().height >= handNeed(z.h) - 1;
     };
-    const caps = desk ? { o: 1.6, m: 1.5, h: 1.3 } : { o: 1.7, m: 1.35, h: 1.3 };
+    const caps = desk ? { o: 1.6, m: 1.5, h: 1.3 } : { o: 1.7, m: 1.35, h: 1.4 };
     const prevH = hand.style.minHeight;
     if (!desk) { hand.style.height = ''; hand.style.minHeight = '0px'; hand.style.alignSelf = 'stretch'; } // measure the row, not the last fan
     const last = ui.zoom && ui.zoom.screen === screen ? { o: ui.zoom.o, m: ui.zoom.m, h: ui.zoom.h } : null;
@@ -928,12 +931,14 @@
       const mz = wideMine() ? Math.max(0.75, q(mine.clientWidth / mine.scrollWidth - 0.02)) : 1;
       // (a smaller zoom on my row also makes its boards wider inside, so trait names wrap less and the row
       // gets shorter: tried too, after the opponents' boards are down to 0.8: my own boards are the ones I act on)
+      // (one opponent per line on a narrow phone: the lines may go under 0.75, their pieces are bigger to start with)
+      const oMin = o.classList.contains('rows') && ui.fit.rowsZ ? Math.min(0.75, Math.max(0.5, Math.floor(ui.fit.rowsZ * 20) / 20)) : 0.75;
       const tries = [];
-      for (let a = 1; a >= 0.749; a -= 0.05) for (let b = mz; b >= Math.min(mz, 0.8) - 0.001; b -= 0.05) tries.push({ o: q(a), m: q(b), h: 1 });
+      for (let a = 1; a >= oMin - 0.001; a -= 0.05) for (let b = mz; b >= Math.min(mz, 0.8) - 0.001; b -= 0.05) tries.push({ o: q(a), m: q(b), h: 1 });
       const rank = z => (z.o >= 0.8 ? 2 : 0) + (z.m >= mz - 0.001 ? 1 : 0);
       tries.sort((x, y) => rank(y) - rank(x) || (y.o + y.m) - (x.o + x.m) || y.m - x.m);
       for (const z of tries) { best = z; if (ok(z)) { fits = true; break; } }
-      if (!fits) best = { o: 0.75, m: mz, h: 1 };
+      if (!fits) best = { o: oMin, m: mz, h: 1 };
     }
     if (!(lastOk && ui.zoom.key === key) && fits) {
       ui.zoomSearches++;
@@ -945,10 +950,12 @@
           if (ok(mk(mid))) { lo = mid; best = mk(mid); } else hi = mid - 0.05;
         }
       };
+      // phone: the held hand first gets the size where its card names read at 10px, if that fits
+      if (!desk) { const hn = Math.min(caps.h, Math.ceil(10 / (cw * 0.165) * 20) / 20); if (hn > best.h) { const t = Object.assign({}, best, { h: hn }); if (ok(t)) best = t; } }
       const b0 = best;
       search(x => ({ o: Math.max(b0.o, Math.min(x, caps.o)), m: Math.max(b0.m, Math.min(x, caps.m)), h: Math.max(b0.h, Math.min(x, caps.h)) }), Math.min(b0.o, b0.m, b0.h), Math.max(caps.o, caps.m, caps.h), 4);
       // laptop: my own boards grow first, then the opponents, then the hand
-      for (const [k, n] of desk ? [['m', 3], ['o', 3], ['h', 2]] : [['o', 3], ['m', 1], ['h', 1]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
+      for (const [k, n] of desk ? [['m', 3], ['o', 3], ['h', 2]] : [['o', 3], ['m', 1], ['h', 3]]) { const b1 = best; search(x => Object.assign({}, b1, { [k]: x }), best[k], caps[k], n); }
     }
     hand.style.minHeight = prevH; hand.style.alignSelf = '';
     best = { o: +best.o.toFixed(2), m: +best.m.toFixed(2), h: +best.h.toFixed(2) };
