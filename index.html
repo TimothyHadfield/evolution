@@ -464,6 +464,13 @@
   .hand.settle .tc { transition: none !important; }
   .hand.wide { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
   .hand .tc .tn { left: 19%; right: 5%; }
+  /* fit pass round 3 (app.js handNames): overlapped cards show their name in the strip left in view */
+  .hand.lap .tc .tn, #hand.lap .tc .tn { left: auto; right: 2%; width: var(--strip); font-size: var(--tnf); text-align: right; }
+  /* a big hand in a narrow column: two rows of cards side by side */
+  .hand.rows2 { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
+  .hand.rows2 .fanrow { position: relative; width: 100%; flex: none; }
+  .hand.rows2 .tc .tn, #hand.rows2 .tc .tn { left: 8%; right: 5%; font-size: var(--tnf); }
+  .hand.rows2 .tc .fd { font-size: var(--fdf); width: calc(var(--fdf) * 1.85); height: calc(var(--fdf) * 1.45); }
   .hand .tc.sel { box-shadow: 0 0 0 2px var(--accent-warm), 0 2px 3px rgba(0,0,0,.25), 0 12px 22px rgba(0,0,0,.45); }
   .hand:empty::before { content: "No cards"; color: rgba(243,239,228,.6); font-size: 13px; position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; }
   .acts { grid-area: acts; display: flex; gap: 7px; min-height: 44px; align-items: center; }
@@ -729,7 +736,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="23"></script>
-<script src="js/app.js?v=22"></script>
+<script src="js/pwa.js?v=13" data-version="24"></script>
+<script src="js/app.js?v=23"></script>
 </body>
 </html>

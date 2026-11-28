@@ -343,7 +343,11 @@
   }
   function closeSheet() { const s = $('#sheet'); if (s) { s.remove(); overlayClosed(); } }
   // soft hyphens so long one-word trait names break cleanly on small cards instead of being cut off
-  const SOFT = { Intelligence: 'Intelli­gence', Cooperation: 'Cooper­ation', Burrowing: 'Burrow­ing', Carnivore: 'Carni­vore', Scavenger: 'Scav­enger', Symbiosis: 'Sym­biosis' };
+  // (fit pass round 3: a break in every long word, so a name fits the ~30px strip a held card shows at 10px,
+  // and narrow boards break "Defen-sive" instead of "Defensi ve")
+  const SOFT = { Intelligence: 'Intel­li­gence', Cooperation: 'Co­op­er­ation', Burrowing: 'Bur­row­ing', Carnivore: 'Carni­vore', Scavenger: 'Scav­enger', Symbiosis: 'Sym­biosis',
+    Ambush: 'Am­bush', Climbing: 'Climb­ing', 'Defensive Herding': 'De­fen­sive Herd­ing', 'Fat Tissue': 'Fat Tis­sue', Fertile: 'Fer­tile',
+    Foraging: 'For­ag­ing', 'Pack Hunting': 'Pack Hunt­ing', 'Warning Call': 'Warn­ing Call' };
   const tName = t => esc(SOFT[t] || t);
   function famStyle(t) { const f = A.FAMILY[t] || 'feed'; return '--paper:' + A.PAPER[f] + ';--ink:' + A.INK[f]; }
 
@@ -991,8 +995,48 @@
         hb.addEventListener('scroll', () => { ui.handScroll = hb.scrollLeft; }, { passive: true });
       }
     }
+    if (cs && cs.length > 1 && !hb.classList.contains('wide')) handNames(hb, handCards);
     void hb.offsetWidth; hb.classList.remove('settle');
     if (revealing) document.querySelectorAll('.hole .fcards [data-reveal]').forEach(el => turnOver(el, +el.dataset.reveal, +el.dataset.at));
+  }
+  // fit pass round 3: every held card's name readable in the part of the card you can see. Overlapped cards
+  // show only their right strip (each lies under the card to its left), so the name moves to the card's
+  // top right, sized to that strip; when even that would read under 10px (a laptop's narrow hand column),
+  // the hand is held in two rows of cards side by side instead.
+  function handNames(hb, handCards) {
+    const cs = ui.fan.cards, n = cs.length, cw = cs[0].offsetWidth;
+    const step = parseFloat(cs[1].style.getPropertyValue('--x')) - parseFloat(cs[0].style.getPropertyValue('--x'));
+    if (!cw || step >= cw - 1) return; // side by side already
+    const hz = parseFloat(hb.style.zoom) || 1;
+    const small = innerWidth < 900 && (innerWidth < 360 || innerHeight < 600);
+    const fmin = (small ? 7.5 : 10) / hz; // smallest name size, in the hand's own px
+    const PIECE = 3.22; // widest unbreakable bit of a trait name ("Climb-", "Warn-", "Horns") is ~3.2 font-sizes wide
+    const strip = step - 1.5 - cw * 0.02, fA = Math.min(cw * 0.165, strip / PIECE);
+    // two rows: as big as the hand's box allows, cards side by side
+    const W = hb.clientWidth, k2 = Math.ceil(n / 2);
+    const hs = hb.style.height; hb.style.height = ''; hb.style.alignSelf = 'stretch'; hb.style.minHeight = '0px';
+    const H = hb.getBoundingClientRect().height / hz;
+    hb.style.height = hs; hb.style.alignSelf = ''; hb.style.minHeight = '';
+    const cw2 = Math.floor(Math.min(cw, W / k2 - 1, (H - 24) / 2 * 63 / 88));
+    // (in two rows the name and food number keep 10px / 12px even on smaller cards, while the name's widest bit fits)
+    const rowsOk = cw2 * 0.85 >= PIECE * fmin + 2;
+    if (fA >= fmin || !rowsOk) {
+      hb.classList.add('lap');
+      hb.style.setProperty('--strip', Math.max(10, strip).toFixed(1) + 'px');
+      hb.style.setProperty('--tnf', fA.toFixed(2) + 'px');
+      return;
+    }
+    if (ui.fan.disconnect) ui.fan.disconnect();
+    hb.classList.remove('tbl-fan'); hb.classList.add('rows2'); hb.style.height = '';
+    hb.style.setProperty('--tnf', Math.max(cw2 * 0.165, fmin).toFixed(2) + 'px');
+    hb.style.setProperty('--fdf', Math.max(cw2 * 0.21, fmin * 1.2).toFixed(2) + 'px');
+    hb.innerHTML = '<div class="fanrow"></div><div class="fanrow"></div>';
+    const opt = { pick: false, spread: 1, lift: 10, maxRot: 2, minHeight: 0 };
+    const fans = [TB.fan(hb.children[0], handCards.slice(0, k2), opt), TB.fan(hb.children[1], handCards.slice(k2), opt)];
+    const all = fans[0].cards.concat(fans[1].cards);
+    all.forEach(e => e.style.setProperty('--card-w', cw2 + 'px'));
+    fans.forEach(f => f.layout());
+    ui.fan = { cards: all, disconnect() { fans.forEach(f => f.disconnect && f.disconnect()); } };
   }
   // the newest discards we know (food cards of earlier rounds), face up
   function discardCards(v) {

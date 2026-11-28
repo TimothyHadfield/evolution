@@ -98,15 +98,36 @@ const measure = page => page.evaluate(() => {
   const hc = [...document.querySelectorAll('#hand .tc')].filter(vis).map(c => c.getBoundingClientRect()).sort((a, b) => a.left - b.left);
   let strip = hc.length ? 1e9 : null; for (let i = 1; i < hc.length; i++) strip = Math.min(strip, hc[i].left - hc[i - 1].left);
   if (hc.length === 1) strip = hc[0].width;
+  // hand: each card's name must lie in the part of the card you can see (not under the card lying on it):
+  // the left end, middle and right end of every line of the name must hit that same card
+  const handCut = [...document.querySelectorAll('#hand .tc')].filter(vis).map(c => {
+    const tn = c.querySelector('.tn'); if (!tn) return null;
+    const rg = document.createRange(); rg.selectNodeContents(tn);
+    const on = (x, y) => { const e = document.elementFromPoint(x, y); return !!e && c.contains(e); };
+    const lines = [...rg.getClientRects()].filter(q => q.width > 2 && q.height > 2);
+    const why = []; for (const q of lines) { const y = q.top + q.height / 2; for (const x of [q.left + 1.5, (q.left + q.right) / 2, q.right - 1.5]) if (!on(x, y)) { const e = document.elementFromPoint(x, y); why.push(Math.round(x) + ',' + Math.round(y) + '>' + (e ? e.tagName + '.' + e.className : 'null')); } }
+    // ... and no word split where it has no hyphen ("Clim / bing", "Horn / s")
+    const tx = tn.firstChild; if (tx && tx.nodeType === 3) {
+      const s = tx.data; let prev = null;
+      for (let i = 0; i < s.length; i++) {
+        const r1 = document.createRange(); r1.setStart(tx, i); r1.setEnd(tx, i + 1);
+        const q = [...r1.getClientRects()].find(z => z.width > 0.5); if (!q) continue;
+        if (prev && q.top > prev.q.top + 3 && !/[\s­-]/.test(s[prev.i]) && !/\s/.test(s[i]) && !/[\s­]/.test(s.slice(prev.i + 1, i))) why.push('split ' + s.slice(0, i).replace(/­/g, '') + '|');
+        prev = { q, i };
+      }
+    }
+    return why.length ? tn.textContent.replace(/­/g, '') + ' [' + why.join(' ') + ']' : null;
+  }).filter(Boolean);
   const de = document.documentElement, o = document.querySelector('.opps');
   return {
     myTrait: min('#mine .tr:not(.empty):not(.hid) span', fs), myCube: min('#mine .trk .cube', fs), myTrackNum: min('#mine .trk i', fs), myTrackLbl: min('#mine .trk .tl', fs),
     myFood: min('#mine .fr .ftk, #mine .fr .slot', el => el.getBoundingClientRect().height), mySp: document.querySelectorAll('#mine .sp').length,
-    cutTr, handName: min('#hand .tc .tn', fs), handFood: min('#hand .tc .fd', fs), handStrip: strip == null ? null : Math.round(strip), handN: hc.length,
+    cutTr, handCut, handName: min('#hand .tc .tn', fs), handFood: min('#hand .tc .fd', fs), handStrip: strip == null ? null : Math.round(strip), handN: hc.length,
     holeN: min('.hole .hn', fs), oppCube: min('.msp .cube', fs), oppIcon: min('.msp .ics .ic', el => el.getBoundingClientRect().height),
     oppHand: min('.ohand b', fs), oppBag: min('.opp .bag b', fs), oppName: min('.opp .nmx', fs),
     nameCut: [...document.querySelectorAll('.opp .nmx')].filter(vis).filter(n => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 2).map(n => n.textContent),
     offscreen: off('#mine .sp, #hand .tc, .hole .wh, .opp, .acts .btn'),
+    handBox: (() => { const r = document.querySelector('#hand').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })(),
     zoom: ['.opps', '.mine', '.hand'].map(s => { const e = document.querySelector(s); return e && +e.style.zoom; }),
     pageScroll: de.scrollHeight > innerHeight + 1, overflowX: de.scrollWidth > innerWidth + 1, oppsScroll: o ? o.scrollHeight - o.clientHeight : 0,
   };
@@ -145,6 +166,8 @@ for (const [label, st] of [['late game, 6 players, feeding', LATE6], ['late game
       // opponents' names ("Computer 1".."Computer 5") must stay whole, or the number that tells them apart is lost
       if (m.nameCut.length) bad.push('names cut: ' + m.nameCut.join(', '));
       if (m.cutTr.length) bad.push('trait names cut: ' + m.cutTr.join(', '));
+      // round 3: a held card whose name is half under its neighbour ("nbush", "nivore") can't be picked by name
+      if (m.handCut.length) bad.push('hand names hidden: ' + m.handCut.map(s => process.env.VERBOSE ? s : s.replace(/ \[.*$/, '')).join(', '));
       if (m.handStrip != null && m.handN > 1 && m.handStrip < 16) bad.push('hand strip ' + m.handStrip + ' px');
       if (m.offscreen) bad.push(m.offscreen + ' pieces off screen');
       if (m.pageScroll || m.overflowX || m.oppsScroll > 2) bad.push('scrolls: page ' + m.pageScroll + ', sideways ' + m.overflowX + ', opponents ' + m.oppsScroll);
