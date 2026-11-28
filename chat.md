@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-11-27/28: fit pass (builder agent, portfolio fit wave)
+- Asked: spacing/size/fit only at 393x659, 320x568, 659x393, 1280x800, 1440x900; crowded = late game, 6 players, 5 species x 3 traits; numbers ≥12, names ≥10, taps ≥36, no scroll.
+- Built (15841c1, live): phone opponents one per line when shorter; my boards flex into one row (container queries drop trait icons when narrow); bigger hand names/food and opponent pieces; laptop `--hmax` narrows the hand as species grow, `fixBoards`/`--spw` keep boards steady per zoom and when + slots appear. app v21, pwa 22.
+- Verified: new `tests/fit-ui.mjs` 14/15 fail on old code → 15/15; engine 35, online 8, fx 10, edge 4, fluid 11, climate 32, flight 36, tutorial 9, layout 13, fluid-ui 2, tutorial-ui 18, pwa-check 18; leaf-ui 2/3 (same fail on main). Live phone-view 393: 0 errors, no overflow. Shots: scratchpad `evo-fit/before` + `after`.
+- Open: phone crowded text under 10/12 px targets; 320x568 6p opponents scroll inside ~93 px (see NOT verified).
+
 ## 2026-11-25/26: laptop table overlap, then tininess redesign (main chat)
 - **Asked:** "the top section with the other computers playing ... interlap with the watering hole plate and the watering hole plate is weird and off centered"; then "evolution feels extreamly poorly designed right now with spacing and size and whatnot. So much is so tiny it's hard to read"; then "prepare md files for chat reset".
 - **Built:** 8ccbadb desktop zoom can shrink (overlap fix; not a recent regression, measured on 3 old builds). Then the redesign: my hand beside my boards on laptop, bigger watering-hole food cards, narrower side panel under 1200px, + room checked at every desktop size (see progress Decisions 2026-11-26). Also earlier this session: Catan lesson wave pieces (end-of-game reveal, attack toast here).
