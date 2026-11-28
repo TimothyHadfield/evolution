@@ -817,7 +817,10 @@
     }
     const fitKey = innerWidth + 'x' + innerHeight + ':' + v.players.length;
     if (!ui.fit || ui.fit.key !== fitKey) ui.fit = { key: fitKey, tight: false };
-    vPlay.innerHTML = '<div id="game" style="--hn:' + (handCards ? handCards.length : 0) + '" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine' + (finale && v.result.winners.indexOf(ME) >= 0 ? ' won' : '') + '" id="mine">' + mine + '</div>' +
+    // laptop: the hand's column gives up width as my own row of boards grows (5 boards wrapped into two
+    // small rows beside a huge hand before the fit pass)
+    const hmax = mySp.length >= 5 ? 26 : mySp.length === 4 ? 38 : 46;
+    vPlay.innerHTML = '<div id="game" style="--hn:' + (handCards ? handCards.length : 0) + ';--hmax:' + hmax + '%' + '" class="' + (v.players.length >= 4 ? 'crowd' : '') + (ui.fit.tight ? ' tight' : '') + '">' + status + '<div class="opps' + (v.players.length >= 4 ? ' many' : '') + '">' + opps + '</div>' + hole + '<div class="mine' + (finale && v.result.winners.indexOf(ME) >= 0 ? ' won' : '') + (plusOn && ui.zoom && ui.zoom.spw ? ' plus" style="--spw:' + ui.zoom.spw + 'px' : '') + '" id="mine">' + mine + '</div>' +
       '<div class="hand" id="hand">' + hand + '</div><div class="acts">' + acts + '</div>' + side + '</div>' + (v.over && !ui.hideOver && !finale ? overPanel(v) : '');
     fitTable(v);
     layTable(v, handCards, revealing);
@@ -830,6 +833,17 @@
   function fitTable(v) {
     const g = $('#game'), o = g && g.querySelector('.opps');
     if (!o) return;
+    // phone, 3+ computers: one opponent per line when that is shorter than two columns (opponents with
+    // many species), decided again whenever the species counts change
+    if (innerWidth < 900 && o.classList.contains('many')) {
+      const rk = ui.fit.key + '|' + v.players.map(pl => pl.species.length).join(',');
+      if (ui.fit.rowsKey !== rk) {
+        o.style.zoom = 1; o.classList.remove('rows'); const h2 = o.scrollHeight;
+        o.classList.add('rows'); const h1 = o.scrollHeight;
+        ui.fit.rowsKey = rk; ui.fit.rows = h1 < h2;
+      }
+      o.classList.toggle('rows', !!ui.fit.rows);
+    }
     if (!ui.fit.tight && innerWidth < 900 && o.scrollHeight > o.clientHeight + 1) { ui.fit.tight = true; g.classList.add('tight'); }
     zoomTable(v, g);
   }
@@ -843,7 +857,17 @@
     // a new search only when the screen or the number of species changes (each try costs a layout pass);
     // otherwise the last size stays, with one check that it still fits
     const key = screen + '|' + (v.over ? 'o' : '') + '|' + v.players.map(pl => pl.species.length).join(',');
-    const set = z => { o.style.zoom = z.o; mine.style.zoom = z.m; hand.style.zoom = z.h; };
+    const set = z => { o.style.zoom = z.o; mine.style.zoom = z.m; hand.style.zoom = z.h; if (desk) fixBoards(z.m); };
+    // laptop: at each size my boards get one width (150px down to 100px) that leaves room for the + buttons,
+    // so tapping a card never rewraps them or changes their row's height (the hand beside them would shift)
+    const plusRoom0 = v.over ? 0 : 2 * 52, sps = [...mine.children].filter(k => k.classList.contains('sp'));
+    const fixBoards = m => {
+      if (!sps.length) return;
+      const gap = parseFloat(getComputedStyle(mine).columnGap) || 0;
+      const others = [...mine.children].filter(k => !k.classList.contains('sp') && !k.classList.contains('newsp') && k.offsetWidth).reduce((a, k) => a + k.offsetWidth + gap, 0);
+      const room = mine.getBoundingClientRect().width / m - 8 - others - plusRoom0 - gap * (sps.length + 1);
+      mine.style.setProperty('--spw', Math.max(100, Math.min(150, Math.floor(room / sps.length))) + 'px'); mine.classList.add('fixw');
+    };
     // room the hand needs: one card held up plus its tilt (empty hands keep the same room)
     const probe = document.createElement('i'); probe.className = 'tc'; hand.appendChild(probe);
     const cw = parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 60; probe.remove();
@@ -862,10 +886,14 @@
       if (o.scrollHeight > o.clientHeight + 2 || o.scrollWidth > o.clientWidth + 2) return false;
       for (const s of o.querySelectorAll('.ospc')) if (s.scrollWidth > s.clientWidth + 2) return false;
       if (mine.scrollHeight > mine.clientHeight + 1) return false;
+      // phone: every board of mine in view (they share the row's width)
+      if (!desk && !loose && mine.scrollWidth > mine.clientWidth + 2) return false;
       if ((z.m > 1 || desk) && !loose) { // (laptop: my hand sits beside my boards, so the + room is checked at every size) // (loose: my own planned new boards may slide sideways rather than shrink the table on a tap)
         const kids = [...mine.children].filter(k => k.offsetWidth), mr = mine.getBoundingClientRect();
         if (kids.length) {
-          const w = kids[kids.length - 1].getBoundingClientRect().right - kids[0].getBoundingClientRect().left;
+          // (my boards share the row and narrow down to their min-width, so the room they need is counted at that)
+          const gap = parseFloat(getComputedStyle(mine).columnGap) || 0;
+          const w = kids.reduce((a, k) => a + (k.classList.contains('sp') && !desk ? (parseFloat(getComputedStyle(k).minWidth) || k.offsetWidth) * z.m : k.getBoundingClientRect().width), 0) + gap * z.m * (kids.length - 1);
           if (w + plusRoom * z.m > mr.width - 4) return false;
         }
       }
@@ -891,6 +919,22 @@
       for (let x = 0.95; !fits && x >= 0.55; x -= 0.05) { best = { o: q(x), m: q(x), h: q(x) }; if (ok(best)) { fits = true; break; } }
       // then each part grows back into whatever room is left (below)
     }
+    if (!fits && !desk) {
+      // phone, a packed table that still doesn't fit (6 players with many species on a small phone): the
+      // opponents' boards a little smaller first (tap one for its big sheet), then the hand
+      // (never under 0.75: smaller than that can't be read, so a table that still doesn't fit lets the
+      // opponents' area scroll inside instead; my own boards shrink only when too many for the row)
+      const wideMine = () => { set({ o: 0.75, m: 1, h: 1 }); return mine.scrollWidth > mine.clientWidth + 2; };
+      const mz = wideMine() ? Math.max(0.75, q(mine.clientWidth / mine.scrollWidth - 0.02)) : 1;
+      // (a smaller zoom on my row also makes its boards wider inside, so trait names wrap less and the row
+      // gets shorter: tried too, after the opponents' boards are down to 0.8: my own boards are the ones I act on)
+      const tries = [];
+      for (let a = 1; a >= 0.749; a -= 0.05) for (let b = mz; b >= Math.min(mz, 0.8) - 0.001; b -= 0.05) tries.push({ o: q(a), m: q(b), h: 1 });
+      const rank = z => (z.o >= 0.8 ? 2 : 0) + (z.m >= mz - 0.001 ? 1 : 0);
+      tries.sort((x, y) => rank(y) - rank(x) || (y.o + y.m) - (x.o + x.m) || y.m - x.m);
+      for (const z of tries) { best = z; if (ok(z)) { fits = true; break; } }
+      if (!fits) best = { o: 0.75, m: mz, h: 1 };
+    }
     if (!(lastOk && ui.zoom.key === key) && fits) {
       ui.zoomSearches++;
       // largest size that still fits, found by halving: first all three together, then whatever room
@@ -908,7 +952,9 @@
     }
     hand.style.minHeight = prevH; hand.style.alignSelf = '';
     best = { o: +best.o.toFixed(2), m: +best.m.toFixed(2), h: +best.h.toFixed(2) };
-    ui.zoom = Object.assign({ key, screen, cut0 }, best);
+    // my boards' width without the + buttons: kept while they show, so tapping a card never narrows my boards
+    const sp0 = mine.querySelector('.sp'), spw = sp0 && !mine.querySelector('.newsp') ? parseFloat(getComputedStyle(sp0).width) : (ui.zoom && ui.zoom.key === key ? ui.zoom.spw : 0);
+    ui.zoom = Object.assign({ key, screen, cut0, spw }, best);
     set(best);
   }
   // the physical bits: deck thickness, the messy discard pile, the held fan, flips at the reveal

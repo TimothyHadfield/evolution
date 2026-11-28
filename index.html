@@ -343,6 +343,35 @@
     #game.tight .trk i { height: 11px; } #game.tight .trk .tl { font-size: 7px; }
     #game.tight .cube { width: 13px; height: 13px; font-size: 9.5px; }
     #game.tight .ftk, #game.tight .sp .slot { width: 11px; height: 11px; }
+    /* fit pass 2026-11-27: opponents with many species: one player per line (name plate, hand and bag on
+       the left, all their boards in one row beside it) instead of two columns of two-line places;
+       app.js fitTable picks whichever is shorter (Tim: "make sure the user can actually see the full screen") */
+    .opps.many.rows { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+    .opps.many.rows .opp { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; column-gap: 4px; padding: 1px 3px; }
+    .opps.many.rows .oh { flex-wrap: wrap; gap: 2px 4px; align-content: center; }
+    .opps.many.rows .oh .plate, #game.tight .opps.many.rows .opp .plate { flex: 1 1 100%; max-width: 100%; font-size: 11px; line-height: 12px; padding: 2px 4px; }
+    .opps.many.rows .oh .nmx { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .opps.many.rows .oh .grow { display: none; }
+    .opps.many.rows .ospc { justify-content: flex-start; }
+    .opps.many.rows .msp .bp .cube, #game.tight .opps.many.rows .msp .bp .cube { width: 16px; height: 16px; font-size: 12px; }
+    .opps.many.rows .msp .ics .ic, .opps.many.rows .msp .ics .hidden, #game.tight .opps.many.rows .msp .ics .ic, #game.tight .opps.many.rows .msp .ics .hidden { width: 14px; height: 13px; }
+    .opps.many.rows .msp .ics .ti, #game.tight .opps.many.rows .msp .ics .ti { width: 11px; height: 11px; }
+    /* my boards share the row's width (5-6 species all in view, no sideways scroll), never under 62px */
+    .mine .sp { flex: 0 1 auto; min-width: 50px; container-type: inline-size; }
+    #mine { gap: 5px; }
+    /* a narrow board: the trait's name gets the icon's room (its family colour stays on the card's edge) */
+    @container (max-width: 84px) { .tr .ti { display: none; } .tr { padding-left: 2px; padding-right: 1px; } .sp .trs { padding: 0 2px; } }
+    @container (max-width: 60px) { .tr, #game.tight .tr { font-size: 9px; letter-spacing: -.02em; } }
+    #hand .tc .tn { left: 12%; right: 4%; }
+    /* numbers and trait names that decide a move stay readable on the packed table */
+    .tr, #game.tight .tr { font-size: 10px; }
+    .cube, #game.tight .cube { width: 16px; height: 16px; font-size: 12px; }
+    .trk i, #game.tight .trk i { height: 13px; font-size: 9px; }
+    /* the held hand on a phone: name and food leaf a size up (cards are small there) */
+    .hand .tc .tn { font-size: calc(var(--card-w) * .165); }
+    .hand .tc .fd { font-size: calc(var(--card-w) * .21); width: calc(var(--card-w) * .38); height: calc(var(--card-w) * .3); }
+    .opps.many .ohand b, .opps.many .opp .oh .bag b, #game.tight .opps.many .opp .oh .bag b { font-size: 12px; }
+    .opps.many .opp .oh .bag, #game.tight .opps.many .opp .oh .bag { width: 18px; height: 20px; }
   }
   /* the middle of the table: draw deck, the Watering Hole board, the discard pile */
   .hole { grid-area: hole; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 2px 4px; }
@@ -412,6 +441,8 @@
   .tc.big .ci .cli { width: 18px; height: 18px; }
   .mine { grid-area: mine; display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 6px; align-items: stretch; min-width: 0; min-height: -webkit-max-content; min-height: max-content; }
   .mine .mylab { display: none; }
+  .mine.plus .sp, .mine.fixw .sp { flex: none; width: var(--spw); } /* the + buttons slide in beside my boards, never narrow them */
+  .mine.plus .newsp { min-height: 0; align-self: stretch; } /* ... nor make the row taller */
   /* my hand, held as a fan (css/table.css .tbl-fan; js/table.js lays it out) */
   .hand { grid-area: hand; position: relative; align-self: end; min-width: 0; min-height: 60px; }
   .hand .tc { --card-w: 60px; }
@@ -431,8 +462,7 @@
   /* a phone held sideways: the hand and buttons move to the right edge, the table keeps the left */
   /* the opponents and my boards keep the left; status, the watering hole, my hand and the buttons the right */
   @media (max-width: 899px) and (max-height: 480px) and (orientation: landscape) {
-    #game, #game.crowd, #game.tight { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); gap: 4px 10px;
-      grid-template-rows: auto auto minmax(0, 1fr) max-content auto;
+    #game, #game.crowd, #game.tight { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); gap: 4px 10px;      grid-template-rows: auto auto minmax(0, 1fr) max-content auto;
       grid-template-areas: "opps status" "opps hole" "opps hand" "mine hand" "mine acts"; }
     .hand { align-self: center; }
     .mine { padding-top: 4px; }
@@ -460,13 +490,15 @@
   @media (min-width: 900px) {
     /* laptop: my hand sits beside my boards (not under them), so the height a laptop lacks goes to
        bigger pieces instead of a hand row (Tim 2026-11-26: "So much is so tiny it's hard to read") */
-    #game { grid-template-columns: minmax(0, 1fr) clamp(220px, calc(120px + var(--hn, 3) * 62px), 46%) 290px; grid-template-rows: auto minmax(0, max-content) minmax(0, 1fr) max-content auto;
+    #game { grid-template-columns: minmax(0, 1fr) clamp(220px, calc(120px + var(--hn, 3) * 62px), var(--hmax, 46%)) 290px; grid-template-rows: auto minmax(0, max-content) minmax(0, 1fr) max-content auto;
       grid-template-areas: "status status side" "opps opps side" "hole hole side" "mine hand side" "acts acts side"; gap: 8px 14px; }
     .hand { align-self: center; }
     .status .ph { font-size: 16px; }
     .opps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; align-items: start; }
     .opp { padding: 5px 8px 7px; gap: 5px; }
     .opp .oh { font-size: 13.5px; }
+    .ohand b { font-size: 13px; } .opp .oh .bag b { font-size: 12px; }
+    .opp .oh .plate { flex-shrink: 0; max-width: 100%; } /* the name keeps its room; "ready" gives way first */
     .msp { min-width: 74px; }
     .msp .mb { padding: 5px 7px; gap: 4px; }
     .msp .bp .cube { width: 24px; height: 24px; font-size: 15px; }
@@ -492,6 +524,10 @@
     .hole .odds { font-size: 13px; padding: 5px 9px; }
     .mine { align-items: flex-end; align-content: flex-end; flex-wrap: wrap; overflow-y: auto; gap: 12px; padding-top: 10px; justify-content: flex-end; }
     .sp { width: 150px; }
+    /* 5+ boards: they share the row (narrower, never under 108px) before it wraps into a second row */
+    .mine .sp { flex: 0 1 auto; min-width: 100px; container-type: inline-size; }
+    @container (max-width: 124px) { .tr .ti { display: none; } .tr { padding-left: 4px; } }
+    #game[style*="--hmax:26%"] .mine { gap: 8px; }
     .sp .trs { min-height: 84px; padding: 0 8px; }
     .sp .board { padding: 6px 7px 7px; gap: 3px; border-radius: 9px; }
     .sp .fr { min-height: 18px; gap: 3px; }
@@ -499,9 +535,9 @@
     .sp .slot { width: 17px; height: 17px; }
     .trk { gap: 2px; }
     .trk .tl { font-size: 9px; margin-top: 2px; }
-    .trk i { height: 19px; font-size: 10.5px; }
-    .cube { width: 21px; height: 21px; font-size: 13.5px; }
-    .tr { font-size: 12.5px; min-height: 28px; gap: 5px; padding: 3px 5px 5px 3px; }
+    .trk i { height: 19px; font-size: 12px; }
+    .cube { width: 22px; height: 22px; font-size: 16px; }
+    .tr { font-size: 13.5px; min-height: 28px; gap: 5px; padding: 3px 5px 5px 3px; }
     .tr .ti { width: 20px; height: 20px; }
     .newsp { width: 60px; min-height: 180px; font-size: 28px; }
     .hand { min-height: 150px; }
@@ -513,7 +549,7 @@
     #btn-sheet-log { display: none; }
   }
   /* a narrow laptop window: the side panel gives the table more of the width */
-  @media (min-width: 900px) and (max-width: 1199px) { #game { grid-template-columns: minmax(0, 1fr) clamp(200px, calc(110px + var(--hn, 3) * 56px), 46%) 230px; } }
+  @media (min-width: 900px) and (max-width: 1199px) { #game { grid-template-columns: minmax(0, 1fr) clamp(200px, calc(110px + var(--hn, 3) * 56px), var(--hmax, 46%)) 230px; } }
   ul.log { list-style: none; margin: 0; padding: 0; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; }
   ul.log li { color: var(--muted); }
   ul.log li.me { color: var(--text); }
@@ -681,7 +717,7 @@
 <script src="js/profile.js?v=9"></script>
 <script src="js/tutorial.js?v=11"></script>
 <script src="js/evoprofile.js?v=9"></script>
-<script src="js/pwa.js?v=13" data-version="21"></script>
-<script src="js/app.js?v=20"></script>
+<script src="js/pwa.js?v=13" data-version="22"></script>
+<script src="js/app.js?v=21"></script>
 </body>
 </html>
