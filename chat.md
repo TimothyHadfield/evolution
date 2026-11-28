@@ -1,5 +1,10 @@
 # Evolution Lab: session log
 
+## 2026-11-28: fit pass round 3 (builder agent, from group manager B)
+- Asked: the r2 393 hand showed names cut from the left ("nbush", "nivore", "lorns"); make every held card's name fully readable at >= 10 px, test it.
+- Built (9ad0a9b, live): `handNames()` — overlapped hand: name top-right inside the visible strip, font sized to fit its widest piece; laptop narrow column: two rows side by side; more soft hyphens in SOFT. app v23, pwa 24.
+- Verified: fit-ui new check (elementFromPoint on each name line + no mid-word split) failed 14/15 on round-2 main → 15/15; split check seen failing on a narrowed strip; all suites green (leaf-ui now 3/3). Live phone-view 393: no errors/overflow. Shots: scratchpad `evo-fit/r3`.
+
 ## 2026-11-28: fit pass round 2 (builder agent, from group manager B)
 - Asked: use the spare width on the crowded phone (opponent lines ended ~100 px short) so hand names reach 10 px and opponent cubes 12 px; fix the 320x568 inner scroll.
 - Built (a867d05, live): opponent lines with the name on one line, icons two high, cubes 18px/15px font, hand counts 16px; hand grows first to 10 px names; rows at 320 shrink to the width instead of wrapping; 2-3 opponent packed table sits closer. app v22, pwa 23.
