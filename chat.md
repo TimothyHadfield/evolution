@@ -1,5 +1,11 @@
 # Evolution Lab: session log
 
+## 2026-11-28: fit pass round 2 (builder agent, from group manager B)
+- Asked: use the spare width on the crowded phone (opponent lines ended ~100 px short) so hand names reach 10 px and opponent cubes 12 px; fix the 320x568 inner scroll.
+- Built (a867d05, live): opponent lines with the name on one line, icons two high, cubes 18px/15px font, hand counts 16px; hand grows first to 10 px names; rows at 320 shrink to the width instead of wrapping; 2-3 opponent packed table sits closer. app v22, pwa 23.
+- Verified: tightened fit-ui failed 5/15 on round-1 main → 15/15; all suites green (leaf-ui 2/3, same as main); live phone-view 393 + desktop: no errors, no overflow. Shots: scratchpad `evo-fit/r2`.
+- Open: 320 still small; mid-word trait-name breaks on narrow boards.
+
 ## 2026-11-27/28: fit pass (builder agent, portfolio fit wave)
 - Asked: spacing/size/fit only at 393x659, 320x568, 659x393, 1280x800, 1440x900; crowded = late game, 6 players, 5 species x 3 traits; numbers ≥12, names ≥10, taps ≥36, no scroll.
 - Built (15841c1, live): phone opponents one per line when shorter; my boards flex into one row (container queries drop trait icons when narrow); bigger hand names/food and opponent pieces; laptop `--hmax` narrows the hand as species grow, `fixBoards`/`--spw` keep boards steady per zoom and when + slots appear. app v21, pwa 22.
